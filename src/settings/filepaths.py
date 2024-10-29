@@ -7,6 +7,7 @@ ROOT_DIR = SRC_DIR.parent
 DATA_DIR = ROOT_DIR / "data"
 CSV_DIR = DATA_DIR / "csv"
 SETTINGS_DIR = SRC_DIR / "settings"
+VIZ_DIR = ROOT_DIR / "vizualizations"
 
 # FILEPATH
 DB_SETTINGS_PATH = SETTINGS_DIR / "db_settings.json"

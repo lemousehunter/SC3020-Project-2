@@ -30,8 +30,17 @@ class DatabaseManager:
         result = cursor.fetchall()
         return result
 
+    def get_qep(self, query):
+        cursor = self.connection.cursor()
+        cursor.execute("EXPLAIN (FORMAT JSON) " + query)
+        result = cursor.fetchall()
+        result = result
+        return result
+
 
 if __name__ == "__main__":
     db_manager = DatabaseManager('TPC-H')
-    res = db_manager.execute_query("SELECT * FROM nation LIMIT 10")
+    # res = db_manager.get_qep("WITH scan_orders_1 AS (SELECT * FROM orders) SELECT * FROM scan_orders_1")
+
+    res = db_manager.get_qep("select * from customer C, orders O where C.c_custkey = O.o_custkey")
     print(res)
