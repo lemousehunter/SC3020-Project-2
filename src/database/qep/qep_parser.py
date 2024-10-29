@@ -287,9 +287,10 @@ class QEPParser:
 
 if __name__ == "__main__":
     db_manager = DatabaseManager('TPC-H')
+    #res = db_manager.get_qep("select * from customer C, orders O where C.c_custkey = O.o_custkey")
     res = db_manager.get_qep("select * from customer C, orders O where C.c_custkey = O.o_custkey")
     q = QEPParser()
     tree = q.parse(res)
-    QEPVisualizer(tree).visualize(VIZ_DIR / "qep_tree.png")
     VIZ_DIR.mkdir(parents=True, exist_ok=True)
+    QEPVisualizer(tree).visualize(VIZ_DIR / "qep_tree.png")
     #q.visualize(VIZ_DIR / "qep_tree.png")
