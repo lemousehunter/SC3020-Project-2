@@ -115,9 +115,6 @@ class QEPParser:
                     tables.add(name) # add table name
                     tables.remove(t) # remove alias
 
-
-            #tables.update(resolved_tables)
-
         return tables
 
     def _get_table_info(self, node_data: Dict[str, Any]) -> str:
