@@ -107,9 +107,16 @@ class QEPParser:
         ]
 
         for condition in conditions:
-            resolved_tables = {self._resolve_table_name(t) for t in
-                               self._extract_tables_from_condition(condition)}
-            tables.update(resolved_tables)
+
+            for t in self._extract_tables_from_condition(condition):
+                name = self._resolve_table_name(t)
+
+                if name != t: # if alias is successfully resolved to table name
+                    tables.add(name) # add table name
+                    tables.remove(t) # remove alias
+
+
+            #tables.update(resolved_tables)
 
         return tables
 
@@ -377,6 +384,7 @@ class QEPParser:
     def visualize(self, output_file: str = 'qep_tree.png'):
         """
         Visualize the query plan tree using NetworkX and save it to a file.
+        Shows only node type, total cost, and involved tables.
 
         Args:
             output_file: Path where the visualization should be saved
@@ -401,19 +409,23 @@ class QEPParser:
                                arrows=True,
                                arrowsize=20)
 
-        # Create labels with node type, cost, and resolved table info
+        # Create simplified labels
         labels = {}
         for node, data in self.graph.nodes(data=True):
             label_parts = [
                 f"{data['node_type']}",
                 f"Cost: {data['total_cost']:.2f}"
             ]
-            if 'table_info' in data:
-                # Use resolved table names in the display
-                table_info = data['table_info']
-                for alias, table in self.alias_map.items():
-                    table_info = table_info.replace(alias, table)
-                label_parts.append(table_info)
+
+            # Add tables if present in the node's resolved_tables
+            if 'resolved_tables' in data and data['resolved_tables']:
+                print("data['resolved_tables']:", data['resolved_tables'])
+                label_parts.append(f"Tables: {', '.join(data['resolved_tables'])}")
+            else:
+                if 'original_tables' in data and data['original_tables']:
+                    print("data['original_tables']:", data['original_tables'])
+                    label_parts.append(f"Tables: {', '.join(data['original_tables'])}")
+
             labels[node] = '\n'.join(label_parts)
 
         # Add labels
