@@ -461,6 +461,9 @@ class QEPParser:
             'alias_mappings': dict(self.alias_map)
         }
 
+    def get_tree(self) -> nx.DiGraph:
+        return self.graph
+
 if __name__ == "__main__":
     db_manager = DatabaseManager('TPC-H')
     res = db_manager.get_qep("select * from customer C, orders O where C.c_custkey = O.o_custkey")
