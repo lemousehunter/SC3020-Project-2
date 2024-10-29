@@ -136,7 +136,7 @@ class QEPVisualizer:
     def visualize(self, output_file: str = 'qep_tree.png'):
         """
         Visualize the query plan tree using NetworkX and save it to a file.
-        Shows only node type, total cost, and involved tables.
+        Shows only node type, total cost (if not -1), and involved tables.
 
         Args:
             output_file: Path where the visualization should be saved
@@ -164,10 +164,11 @@ class QEPVisualizer:
         # Create simplified labels
         labels = {}
         for node, data in self.graph.nodes(data=True):
-            label_parts = [
-                f"{data['node_type']}",
-                f"Cost: {data['total_cost']:.2f}"
-            ]
+            label_parts = [f"{data['node_type']}"]
+
+            # Only add cost if it's not -1
+            if 'total_cost' in data and data['total_cost'] != -1:
+                label_parts.append(f"Cost: {data['total_cost']:.2f}")
 
             # Add tables if present in the node's resolved_tables
             if 'resolved_tables' in data and data['resolved_tables']:
