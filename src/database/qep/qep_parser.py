@@ -30,30 +30,67 @@ class QEPParser:
         """
         return self.alias_map.get(identifier.lower(), identifier)
 
-    def _process_join_condition(self, condition: str) -> set:
+    def _process_join_condition(self, condition: str) -> Tuple[set, List[str]]:
         """
-        Process a join condition to extract and resolve table names.
-        Example: "(c.c_custkey = o.o_custkey)" -> {"customer", "orders"}
+        Process a join condition to extract and resolve table names and conditions.
+        Returns: (set of table names, list of resolved conditions)
+        Example: "(c.c_custkey = o.o_custkey)" -> ({"customer", "orders"}, ["customer.c_custkey = orders.o_custkey"])
         """
         tables = set()
+        resolved_conditions = []
         if not condition:
-            return tables
+            return tables, resolved_conditions
 
-        # Split on comparison operators and other delimiters
-        parts = condition.replace('(', ' ').replace(')', ' ').replace('=', ' ').split()
+        # Split on logical operators (AND, OR) if present
+        conditions = condition.split(' AND ')
+        for cond in conditions:
+            resolved_condition = cond
+            # Split on comparison operators and other delimiters
+            parts = cond.replace('(', ' ').replace(')', ' ').replace('=', ' ').split()
 
-        for part in parts:
-            if '.' in part:
-                alias = part.split('.')[0].strip()
-                resolved = self._resolve_table_name(alias)
-                if resolved != alias:  # Only add if we successfully resolved an alias
-                    tables.add(resolved)
+            for part in parts:
+                if '.' in part:
+                    table_alias, column = part.split('.')
+                    resolved_table = self._resolve_table_name(table_alias)
+                    if resolved_table != table_alias:  # Only add if we successfully resolved an alias
+                        tables.add(resolved_table)
+                        # Replace alias with resolved table name in condition
+                        resolved_condition = resolved_condition.replace(
+                            f"{table_alias}.", f"{resolved_table}."
+                        )
 
-        return tables
+            if resolved_condition.strip():
+                resolved_conditions.append(resolved_condition.strip())
 
-    def _extract_tables(self, node_data: Dict[str, Any]) -> set:
-        """Extract and resolve all table names from a node."""
+        return tables, resolved_conditions
+
+    def _extract_join_info(self, node_data: Dict[str, Any]) -> Tuple[Set[str], List[str]]:
+        """Extract join tables and conditions from a node."""
+        all_tables = set()
+        all_conditions = []
+
+        # Process various types of join conditions
+        condition_keys = [
+            'Hash Cond',
+            'Join Filter',
+            'Filter',
+            'Index Cond',
+            'Merge Cond',
+            'Recheck Cond'
+        ]
+
+        for key in condition_keys:
+            if key in node_data:
+                tables, conditions = self._process_join_condition(node_data[key])
+                all_tables.update(tables)
+                all_conditions.extend(conditions)
+
+        return all_tables, all_conditions
+
+    def _extract_tables(self, node_data: Dict[str, Any]) -> Tuple[Set[str], List[str]]:
+        """Extract and resolve all table names and conditions from a node."""
         tables = set()
+        conditions = []
 
         # Handle direct table references
         if 'Relation Name' in node_data:
@@ -63,21 +100,11 @@ class QEPParser:
             tables.add(table_name)
 
         # Process join conditions
-        conditions = [
-            node_data.get('Hash Cond', ''),
-            node_data.get('Join Filter', ''),
-            node_data.get('Filter', ''),
-            node_data.get('Index Cond', ''),
-            node_data.get('Merge Cond', ''),
-            node_data.get('Recheck Cond', '')
-        ]
+        join_tables, join_conditions = self._extract_join_info(node_data)
+        tables.update(join_tables)
+        conditions.extend(join_conditions)
 
-        for condition in conditions:
-            if condition:
-                join_tables = self._process_join_condition(condition)
-                tables.update(join_tables)
-
-        return tables
+        return tables, conditions
 
     def _get_child_tables(self, child_nodes: List[str]) -> Set[str]:
         """Collect all tables from child nodes."""
@@ -91,6 +118,7 @@ class QEPParser:
         """Parse a single node and its children."""
         node_id = str(uuid.uuid4())
         tables = set()
+        conditions = []
 
         # Process children first to ensure all aliases are registered
         child_nodes = []
@@ -99,9 +127,10 @@ class QEPParser:
                 child_id = self._parse_node(child_plan, node_id, is_root=False)
                 child_nodes.append(child_id)
 
-        # Extract tables from this node
-        node_tables = self._extract_tables(node_data)
+        # Extract tables and conditions from this node
+        node_tables, node_conditions = self._extract_tables(node_data)
         tables.update(node_tables)
+        conditions.extend(node_conditions)
 
         # For join nodes, include tables from all children
         node_type = node_data.get('Node Type', '')
@@ -117,7 +146,8 @@ class QEPParser:
             'node_type': node_type,
             'tables': sorted(tables),  # Sort for consistent ordering
             'cost': node_data.get('Total Cost', 0.0),
-            'is_root': is_root
+            'is_root': is_root,
+            'conditions': conditions  # Add join conditions to node attributes
         }
 
         # Add node to graph
@@ -166,12 +196,20 @@ class QEPParser:
             print(f"{indent}Cost: {attrs['cost']:.2f}")
             print(f"{indent}Tables: {', '.join(attrs['tables']) if attrs['tables'] else 'None'}")
             print(f"{indent}Is Root: {attrs['is_root']}")
+            if attrs['conditions']:
+                print(f"{indent}Conditions: {', '.join(attrs['conditions'])}")
+
 
 
 if __name__ == "__main__":
     db_manager = DatabaseManager('TPC-H')
     #res = db_manager.get_qep("select * from customer C, orders O where C.c_custkey = O.o_custkey")
-    res = db_manager.get_qep("select * from customer C, orders O where C.c_custkey = O.o_custkey")
+    #res = db_manager.get_qep("select * from customer C, orders O where C.c_custkey = O.o_custkey")
+    query = """
+        select * from customer C, orders O where C.c_custkey = O.o_custkey;
+        """
+    res = db_manager.get_qep(query)
+
     q = QEPParser()
     tree = q.parse(res)
     VIZ_DIR.mkdir(parents=True, exist_ok=True)
