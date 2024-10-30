@@ -169,5 +169,8 @@ SELECT setup_tpch_schema();
 
 \copy public.lineitem (l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment) FROM '/Users/mouse/Documents/GitHub/SC3020/SC3020-Project-2/data/csv/lineitem.csv' DELIMITER '|' CSV;
 
--- Remember to create extension for pg_hint_plan
+-- Remember to install pg_hint_plan extension by following the steps in their git repo (namely the make install one)
+-- Edit postgresql.conf to enable pg_hint_plan
+-- Add this: shared_preload_libraries = 'pg_hint_plan'
+-- Remember to create extension for pg_hint_plan after adding the line
 CREATE EXTENSION IF NOT EXISTS pg_hint_plan;
