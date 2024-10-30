@@ -85,14 +85,16 @@ class QueryModifier:
             Modified NetworkX DiGraph
         """
         if not self.modifications:
-            raise ValueError("No modifications have been added")
+            pass
+            #raise ValueError("No modifications have been added")
+        else:
 
-        for modification in self.modifications:
-            matching_nodes = self._find_matching_nodes(modification)
-            for node_id in matching_nodes:
-                self._update_node_type(node_id, modification.new_type)
+            for modification in self.modifications:
+                matching_nodes = self._find_matching_nodes(modification)
+                for node_id in matching_nodes:
+                    self._update_node_type(node_id, modification.new_type)
 
-        # Clear costs after applying modifications
+            # Clear costs after applying modifications
         self.clear_costs()
         return self.graph
 
