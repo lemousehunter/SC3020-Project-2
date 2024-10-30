@@ -149,7 +149,7 @@ $$ LANGUAGE plpgsql;
 
 SELECT setup_tpch_schema();
 
-\c "TPC-H" postgres
+\c "TPC-H"
 -- Step 3: Data loading commands (to be run separately after schema setup)
 -- The user must specify the correct paths for their CSV files and execute the commands below:
 -- Load data into the region table
@@ -168,3 +168,6 @@ SELECT setup_tpch_schema();
 \copy public.orders (o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment) FROM '/Users/mouse/Documents/GitHub/SC3020/SC3020-Project-2/data/csv/orders.csv' DELIMITER '|' CSV;
 
 \copy public.lineitem (l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment) FROM '/Users/mouse/Documents/GitHub/SC3020/SC3020-Project-2/data/csv/lineitem.csv' DELIMITER '|' CSV;
+
+-- Remember to create extension for pg_hint_plan
+CREATE EXTENSION IF NOT EXISTS pg_hint_plan;
