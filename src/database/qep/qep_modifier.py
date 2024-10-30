@@ -7,42 +7,8 @@ from enum import Enum, auto
 from src.database.databaseManager import DatabaseManager
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_visualizer import QEPVisualizer
-from src.types.qep import JoinInfo
+from src.types.qep import JoinInfo, NodeType, ScanType, JoinType, QueryModification
 from src.settings.filepaths import VIZ_DIR
-
-
-class NodeType(Enum):
-    SCAN = auto()
-    JOIN = auto()
-
-
-class ScanType(Enum):
-    SEQ_SCAN = "Seq Scan"
-    INDEX_SCAN = "Index Scan"
-    INDEX_ONLY_SCAN = "Index Only Scan"
-    BITMAP_HEAP_SCAN = "Bitmap Heap Scan"
-    BITMAP_INDEX_SCAN = "Bitmap Index Scan"
-
-
-class JoinType(Enum):
-    NESTED_LOOP = "Nested Loop"
-    HASH_JOIN = "Hash Join"
-    MERGE_JOIN = "Merge Join"
-
-
-@dataclass
-class QueryModification:
-    node_type: NodeType
-    original_type: str  # Original scan or join type
-    new_type: str  # New scan or join type
-    tables: Set[str]  # Single table for scan, two tables for join
-
-    def __post_init__(self):
-        # Validate tables count based on node type
-        if self.node_type == NodeType.SCAN and len(self.tables) != 1:
-            raise ValueError("Scan modifications must specify exactly one table")
-        if self.node_type == NodeType.JOIN and len(self.tables) != 2:
-            raise ValueError("Join modifications must specify exactly two tables")
 
 
 class QueryModifier:
