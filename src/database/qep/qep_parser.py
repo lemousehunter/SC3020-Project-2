@@ -12,278 +12,161 @@ from src.settings.filepaths import VIZ_DIR
 class QEPParser:
     def __init__(self):
         self.graph = nx.DiGraph()
-        self.node_counter = 0
-        self.pos = {}
-        self.table_references = defaultdict(set)  # Track table references
         self.alias_map = {}  # Map aliases to original table names
 
     def reset(self):
-        """Reset the graph and node counter for a new parsing operation."""
+        """Reset the parser state."""
         self.graph = nx.DiGraph()
-        self.node_counter = 0
-        self.pos = {}
-        self.table_references.clear()
         self.alias_map.clear()
 
-    def _extract_tables_from_condition(self, condition: str) -> Set[str]:
+    def _register_alias(self, alias: str, table_name: str):
+        """Register a table alias."""
+        self.alias_map[alias.lower()] = table_name
+
+    def _resolve_table_name(self, identifier: str) -> str:
         """
-        Extract table aliases from a join condition or filter.
+        Resolve a table identifier to its full original name.
+        Returns the original identifier if no mapping exists.
+        """
+        return self.alias_map.get(identifier.lower(), identifier)
 
-        Args:
-            condition: The join condition or filter string
-
-        Returns:
-            Set of table aliases found in the condition
+    def _process_join_condition(self, condition: str) -> set:
+        """
+        Process a join condition to extract and resolve table names.
+        Example: "(c.c_custkey = o.o_custkey)" -> {"customer", "orders"}
         """
         tables = set()
         if not condition:
             return tables
 
-        # Split condition into parts
-        parts = condition.replace('(', ' ').replace(')', ' ').split()
+        # Split on comparison operators and other delimiters
+        parts = condition.replace('(', ' ').replace(')', ' ').replace('=', ' ').split()
 
-        # Look for table aliases (typically before dots)
         for part in parts:
             if '.' in part:
-                alias = part.split('.')[0]
-                # Convert alias to original table name if known
-                tables.add(self.alias_map.get(alias, alias))
+                alias = part.split('.')[0].strip()
+                resolved = self._resolve_table_name(alias)
+                if resolved != alias:  # Only add if we successfully resolved an alias
+                    tables.add(resolved)
 
         return tables
 
-    def _resolve_table_name(self, alias: str) -> str:
-        """
-        Resolve an alias to its original table name.
-
-        Args:
-            alias: The table alias to resolve
-
-        Returns:
-            Original table name or the alias if not found
-        """
-        return self.alias_map.get(alias, alias)
-
-    def _format_table_reference(self, table_name: str, alias: str = None) -> str:
-        """
-        Format a table reference with its alias if different from the table name.
-
-        Args:
-            table_name: Original table name
-            alias: Table alias (if any)
-
-        Returns:
-            Formatted table reference string
-        """
-        if alias and alias != table_name:
-            return f"{table_name} (as {alias})"
-        return table_name
-
-    def _infer_tables_for_node(self, node_data: Dict[str, Any]) -> Set[str]:
-        """
-        Infer all tables involved in a node's operation.
-
-        Args:
-            node_data: Dictionary containing node information
-
-        Returns:
-            Set of original table names involved in this node
-        """
+    def _extract_tables(self, node_data: Dict[str, Any]) -> set:
+        """Extract and resolve all table names from a node."""
         tables = set()
 
-        # Direct table reference
+        # Handle direct table references
         if 'Relation Name' in node_data:
             table_name = node_data['Relation Name']
             alias = node_data.get('Alias', table_name)
-            # Store the alias mapping
-            self.alias_map[alias] = table_name
+            self._register_alias(alias, table_name)
             tables.add(table_name)
 
-        # Check various conditions that might reference tables
+        # Process join conditions
         conditions = [
             node_data.get('Hash Cond', ''),
             node_data.get('Join Filter', ''),
             node_data.get('Filter', ''),
             node_data.get('Index Cond', ''),
+            node_data.get('Merge Cond', ''),
             node_data.get('Recheck Cond', '')
         ]
 
         for condition in conditions:
-
-            for t in self._extract_tables_from_condition(condition):
-                name = self._resolve_table_name(t)
-
-                if name != t: # if alias is successfully resolved to table name
-                    tables.add(name) # add table name
-                    tables.remove(t) # remove alias
+            if condition:
+                join_tables = self._process_join_condition(condition)
+                tables.update(join_tables)
 
         return tables
 
-    def _get_table_info(self, node_data: Dict[str, Any]) -> str:
-        """
-        Extract table information from a node.
+    def _get_child_tables(self, child_nodes: List[str]) -> Set[str]:
+        """Collect all tables from child nodes."""
+        tables = set()
+        for child_id in child_nodes:
+            child_tables = self.graph.nodes[child_id].get('tables', set())
+            tables.update(child_tables)
+        return tables
 
-        Args:
-            node_data: Dictionary containing node information
-
-        Returns:
-            String containing table information
-        """
-        table_info = []
-
-        # Check for relation name (direct table scans)
-        if 'Relation Name' in node_data:
-            table_name = node_data['Relation Name']
-            alias = node_data.get('Alias')
-            table_info.append(f"Table: {self._format_table_reference(table_name, alias)}")
-
-        # Check for join conditions and resolve aliases in them
-        if 'Hash Cond' in node_data:
-            cond = node_data['Hash Cond']
-            # Replace aliases with table names in condition
-            for alias, table in self.alias_map.items():
-                cond = cond.replace(f"{alias}.", f"{table}.")
-            table_info.append(f"Join: {cond}")
-        elif 'Join Filter' in node_data:
-            cond = node_data['Join Filter']
-            # Replace aliases with table names in condition
-            for alias, table in self.alias_map.items():
-                cond = cond.replace(f"{alias}.", f"{table}.")
-            table_info.append(f"Join: {cond}")
-
-        return '\n'.join(table_info) if table_info else ''
-
-    def _propagate_table_info(self):
-        """
-        Propagate table information up the tree to identify implicit joins.
-        """
-        # Process nodes in reverse topological order (bottom-up)
-        for node in reversed(list(nx.topological_sort(self.graph))):
-            node_tables = set()
-
-            # Get tables from children
-            for child in self.graph.successors(node):
-                node_tables.update(self.table_references[child])
-
-            # Add this node's own tables
-            node_tables.update(self.table_references[node])
-
-            # Update the node's table references
-            self.table_references[node] = node_tables
-
-            # Update node attributes with comprehensive table info
-            node_data = self.graph.nodes[node]
-            tables_str = ', '.join(sorted(node_tables))
-            if tables_str and 'table_info' in node_data:
-                current_info = node_data['table_info']
-                if not current_info:
-                    node_data['table_info'] = f"Tables: {tables_str}"
-                elif "Tables:" not in current_info:
-                    node_data['table_info'] += f"\nTables: {tables_str}"
-
-            # Store resolved table names in node attributes
-            node_data['resolved_tables'] = sorted(node_tables)
-
-    def _parse_node(self, node_data: Dict[str, Any], parent_id: Optional[str] = None) -> str:
-        """
-        Recursively parse a node and its children.
-
-        Args:
-            node_data: Dictionary containing node information
-            parent_id: ID of the parent node (if any)
-
-        Returns:
-            The ID of the created node
-        """
+    def _parse_node(self, node_data: Dict[str, Any], parent_id: Optional[str] = None, is_root: bool = False) -> str:
+        """Parse a single node and its children."""
         node_id = str(uuid.uuid4())
+        tables = set()
 
-        # Extract table information
-        table_info = self._get_table_info(node_data)
+        # Process children first to ensure all aliases are registered
+        child_nodes = []
+        if 'Plans' in node_data:
+            for child_plan in node_data['Plans']:
+                child_id = self._parse_node(child_plan, node_id, is_root=False)
+                child_nodes.append(child_id)
 
-        # Infer tables involved in this node
-        tables = self._infer_tables_for_node(node_data)
-        self.table_references[node_id].update(tables)
+        # Extract tables from this node
+        node_tables = self._extract_tables(node_data)
+        tables.update(node_tables)
 
-        # Extract node attributes
+        # For join nodes, include tables from all children
+        node_type = node_data.get('Node Type', '')
+        if 'Join' in node_type or node_type in ['Nested Loop']:
+            child_tables = self._get_child_tables(child_nodes)
+            tables.update(child_tables)
+        elif node_type == 'Materialize':
+            # For Materialize nodes, propagate tables from child
+            child_tables = self._get_child_tables(child_nodes)
+            tables.update(child_tables)
+
         node_attrs = {
-            'node_type': node_data.get('Node Type', 'Unknown'),
-            'startup_cost': node_data.get('Startup Cost', 0.0),
-            'total_cost': node_data.get('Total Cost', 0.0),
-            'plan_rows': node_data.get('Plan Rows', 0),
-            'plan_width': node_data.get('Plan Width', 0),
-            'table_info': table_info,
-            'original_tables': tables  # Store the original table names
+            'node_type': node_type,
+            'tables': sorted(tables),  # Sort for consistent ordering
+            'cost': node_data.get('Total Cost', 0.0),
+            'is_root': is_root
         }
-
-        # Store all additional attributes from the node data
-        for key, value in node_data.items():
-            if key not in ['Plans', 'Node Type', 'Startup Cost', 'Total Cost',
-                           'Plan Rows', 'Plan Width', 'table_info']:
-                node_attrs[key.lower().replace(' ', '_')] = value
 
         # Add node to graph
         self.graph.add_node(node_id, **node_attrs)
 
-        # If this node has a parent, add the edge
+        # Connect to parent if exists
         if parent_id is not None:
             self.graph.add_edge(parent_id, node_id)
-
-        # Recursively process child plans
-        if 'Plans' in node_data:
-            for child_plan in node_data['Plans']:
-                self._parse_node(child_plan, node_id)
 
         return node_id
 
     def parse(self, qep_data: List) -> nx.DiGraph:
-        """
-        Parse the QEP data and return a NetworkX directed graph.
-
-        Args:
-            qep_data: The QEP data structure to parse
-
-        Returns:
-            A NetworkX directed graph representing the query plan
-        """
+        """Parse the QEP data into a graph."""
         self.reset()
 
-        # Parse the QEP structure
         if isinstance(qep_data, list) and len(qep_data) > 0:
             if isinstance(qep_data[0], tuple) and len(qep_data[0]) > 0:
                 if isinstance(qep_data[0][0], list) and len(qep_data[0][0]) > 0:
                     root_plan = qep_data[0][0][0].get('Plan', {})
-                    self._parse_node(root_plan)
-
-        # After building the tree, propagate table information
-        self._propagate_table_info()
+                    self._parse_node(root_plan, parent_id=None, is_root=True)
 
         return self.graph
 
-    def get_tree_statistics(self) -> Dict[str, Any]:
-        """
-        Get basic statistics about the parsed tree.
+    def print_nodes(self):
+        """Print all nodes and their attributes in a hierarchical format."""
+        def get_node_level(node):
+            root = [n for n, d in self.graph.nodes(data=True) if d.get('is_root', False)][0]
+            try:
+                return nx.shortest_path_length(self.graph, root, node)
+            except:
+                return 0
 
-        Returns:
-            Dictionary containing tree statistics
-        """
-        # Convert all table references to original table names
-        all_tables = set()
-        for tables in self.table_references.values():
-            resolved_tables = {self._resolve_table_name(t) for t in tables}
-            all_tables.update(resolved_tables)
+        nodes = list(self.graph.nodes(data=True))
+        nodes.sort(key=lambda x: get_node_level(x[0]))
 
-        return {
-            'num_nodes': self.graph.number_of_nodes(),
-            'num_edges': self.graph.number_of_edges(),
-            'depth': max(nx.shortest_path_length(self.graph,
-                                                 source=list(nx.topological_sort(self.graph))[0]).values()),
-            'node_types': list(set(nx.get_node_attributes(self.graph, 'node_type').values())),
-            'total_cost': sum(nx.get_node_attributes(self.graph, 'total_cost').values()),
-            'tables_involved': sorted(all_tables),
-            'alias_mappings': dict(self.alias_map)
-        }
+        print("\nQuery Execution Plan Node Details:")
+        print("=" * 50)
 
-    def get_tree(self) -> nx.DiGraph:
-        return self.graph
+        for node_id, attrs in nodes:
+            level = get_node_level(node_id)
+            indent = "  " * level
+
+            print(f"\n{indent}Node Level {level}:")
+            print(f"{indent}{'─' * 20}")
+            print(f"{indent}Type: {attrs['node_type']}")
+            print(f"{indent}Cost: {attrs['cost']:.2f}")
+            print(f"{indent}Tables: {', '.join(attrs['tables']) if attrs['tables'] else 'None'}")
+            print(f"{indent}Is Root: {attrs['is_root']}")
+
 
 if __name__ == "__main__":
     db_manager = DatabaseManager('TPC-H')
@@ -293,4 +176,5 @@ if __name__ == "__main__":
     tree = q.parse(res)
     VIZ_DIR.mkdir(parents=True, exist_ok=True)
     QEPVisualizer(tree).visualize(VIZ_DIR / "qep_tree.png")
+    q.print_nodes()
     #q.visualize(VIZ_DIR / "qep_tree.png")
