@@ -1,5 +1,6 @@
 import networkx as nx
 import matplotlib.pyplot as plt
+from textwrap import wrap
 
 
 class QEPVisualizer:
@@ -12,7 +13,7 @@ class QEPVisualizer:
         """
         self.graph = graph
 
-    def _calculate_layout(self, root, width=1., height=1.):
+    def _calculate_layout(self, root, width=1.2, height=1.):
         """
         Create a hierarchical layout with equidistant children and centered parents.
 
@@ -81,37 +82,51 @@ class QEPVisualizer:
 
         return pos
 
+    def _format_conditions(self, conditions: list) -> str:
+        """Format conditions for display with proper wrapping."""
+        if not conditions:
+            return ""
+
+        # Join conditions with AND and wrap at 30 characters
+        conditions_text = " AND ".join(conditions)
+        wrapped_conditions = wrap(conditions_text, width=30)
+        return "\n".join(wrapped_conditions)
+
     def visualize(self, output_file: str = 'qep_tree.png'):
         """
         Visualize the simplified query plan tree and save it to a file.
-        Shows node type, cost (if not -1), and tables involved.
+        Shows node type, cost, tables involved, and join conditions.
 
         Args:
             output_file: Path where the visualization should be saved
         """
-        plt.figure(figsize=(15, 10))
+        # Increase figure size to accommodate conditions
+        plt.figure(figsize=(20, 15))
 
         # Find root node (node with is_root=True)
         root = [n for n, d in self.graph.nodes(data=True) if d.get('is_root', False)][0]
 
-        # Calculate positions
-        pos = self._calculate_layout(root)
+        # Calculate positions with increased spacing
+        pos = self._calculate_layout(root, width=1.5)
 
         # Draw nodes with different colors for root vs non-root
         root_nodes = [n for n, d in self.graph.nodes(data=True) if d.get('is_root', False)]
         non_root_nodes = [n for n, d in self.graph.nodes(data=True) if not d.get('is_root', False)]
 
+        # Increase node size to accommodate more text
+        node_size = 4000
+
         # Draw root node in a different color
         nx.draw_networkx_nodes(self.graph, pos,
                                nodelist=root_nodes,
-                               node_size=3000,
+                               node_size=node_size,
                                node_color='lightcoral',
                                node_shape='s')
 
         # Draw other nodes
         nx.draw_networkx_nodes(self.graph, pos,
                                nodelist=non_root_nodes,
-                               node_size=3000,
+                               node_size=node_size,
                                node_color='lightblue',
                                node_shape='s')
 
@@ -121,7 +136,7 @@ class QEPVisualizer:
                                arrows=True,
                                arrowsize=20)
 
-        # Create labels with only the essential information
+        # Create labels with conditions
         labels = {}
         for node, data in self.graph.nodes(data=True):
             label_parts = [f"{data['node_type']}"]
@@ -136,16 +151,27 @@ class QEPVisualizer:
             else:
                 label_parts.append("No tables")
 
+            # Add conditions if present
+            if 'conditions' in data and data['conditions']:
+                conditions_text = self._format_conditions(data['conditions'])
+                label_parts.append(f"Conditions:\n{conditions_text}")
+
             labels[node] = '\n'.join(label_parts)
 
-        # Add labels
+        # Add labels with smaller font size and better wrapping
         nx.draw_networkx_labels(self.graph, pos,
                                 labels,
                                 font_size=8,
-                                verticalalignment='center')
+                                verticalalignment='center',
+                                horizontalalignment='center',
+                                bbox=dict(facecolor='white',
+                                          edgecolor='none',
+                                          alpha=0.7,
+                                          pad=4.0))
 
         plt.title('Query Execution Plan Tree')
         plt.axis('off')
         plt.tight_layout()
-        plt.savefig(output_file, bbox_inches='tight', dpi=300)
+        plt.savefig(output_file, bbox_inches='tight', dpi=300,
+                    facecolor='white', edgecolor='none')
         plt.close()
