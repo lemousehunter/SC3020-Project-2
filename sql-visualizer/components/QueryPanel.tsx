@@ -5,15 +5,14 @@ import { useState } from 'react';
 import { Box, Button, Textarea, Title } from '@mantine/core';
 
 interface QueryPanelProps {
-  onSubmit: () => void;
+  onSubmit: (query: string) => void; // Update onSubmit to accept a query parameter
 }
 
 export default function QueryPanel({ onSubmit }: QueryPanelProps) {
   const [query, setQuery] = useState<string>('');
 
   const handleQuerySubmit = () => {
-    onSubmit(); // This should trigger handleQuerySubmit in HomePage
-    console.log('Submitted Query:', query);
+    onSubmit(query); // Pass the query to HomePage's handleQuerySubmit
   };
 
   return (

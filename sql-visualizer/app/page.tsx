@@ -1,7 +1,19 @@
+// HomePage Component
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AppShell, Box, Divider, Grid, Group, Select, Stack, Tabs } from '@mantine/core';
+import { IconX } from '@tabler/icons-react';
+import {
+  AppShell,
+  Box,
+  Divider,
+  Grid,
+  Notification,
+  rem,
+  Select,
+  Stack,
+  Tabs,
+} from '@mantine/core';
 import AQPPanel from '../components/AQPPanel';
 import { ColorSchemeToggle } from '../components/ColorSchemeToggle/ColorSchemeToggle';
 import ModifiedSQLPanel from '../components/ModifiedSQLPanel';
@@ -13,7 +25,11 @@ export default function HomePage() {
   const [selectedDatabase, setSelectedDatabase] = useState<string | null>(null);
   const [databases, setDatabases] = useState<{ value: string; label: string }[]>([]);
   const [modifiedSQL, setModifiedSQL] = useState<string>('');
-  const [qepData, setQepData] = useState<any | null>(null); // State for QEP data
+  const [qepData, setQepData] = useState<any | null>(null);
+  const [notification, setNotification] = useState<{ message: string; show: boolean }>({
+    message: '',
+    show: false,
+  }); // Notification state
 
   // Mock QEP Data for demonstration
   const mockQEPNetworkXData = {
@@ -41,22 +57,42 @@ export default function HomePage() {
   // Handle database selection
   const handleDatabaseSelect = (value: string | null) => {
     setSelectedDatabase(value);
-
-    // Send selected database to backend
-    fetch('/api/database/select', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ database: value }),
-    })
-      .then((response) => response.json())
-      .then((data) => console.log(data.message))
-      .catch((error) => console.error('Error setting selected database:', error));
+    setNotification((prev) => ({ ...prev, show: false })); // Hide notification if a database is selected
   };
 
   // Handle query submission
-  const handleQuerySubmit = () => {
-    // For now, we use mock data, but in a real scenario,
-    // you would fetch this from the backend after submitting the query.
+  const handleQuerySubmit = (query: string) => {
+    if (!selectedDatabase) {
+      setNotification({
+        message: 'Please select a database before submitting the query.',
+        show: true,
+      });
+      return;
+    }
+
+    if (!query.trim()) {
+      setNotification({ message: 'Please enter a query before submitting.', show: true });
+      return;
+    }
+
+    // // Send query to backend with the selected database in the URL
+    // fetch(`/api/query/execute?database=${selectedDatabase}`, {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({ query }),
+    // })
+    //   .then((response) => {
+    //     if (!response.ok) {
+    //       throw new Error('Failed to fetch QEP data');
+    //     }
+    //     return response.json();
+    //   })
+    //   .then((data) => {
+    //     setQepData(data.qepData); // Update with backend response
+    //   })
+    //   .catch((error) => {
+    //     console.error('Error fetching QEP data:', error);
+    //   });
     setQepData(mockQEPNetworkXData);
   };
 
@@ -77,6 +113,25 @@ export default function HomePage() {
       <Stack spacing="md">
         {/* Welcome component as an introduction at the top */}
         <Welcome />
+
+        {/* Floating Notification for missing database or query */}
+        {notification.show && (
+          <Notification
+            icon={<IconX style={{ width: rem(20), height: rem(20) }} />}
+            color="red"
+            title="Error"
+            onClose={() => setNotification((prev) => ({ ...prev, show: false }))}
+            style={{
+              position: 'fixed',
+              bottom: rem(20),
+              left: rem(20),
+              width: rem(300),
+              zIndex: 1000,
+            }}
+          >
+            {notification.message}
+          </Notification>
+        )}
 
         <Box style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
           <Select
@@ -115,8 +170,7 @@ export default function HomePage() {
               </Tabs.List>
 
               <Tabs.Panel value="qep" pt="sm">
-                <QEPPanel applyWhatIfChanges={applyWhatIfChanges} qepData={qepData} />{' '}
-                {/* Pass qepData as a prop */}
+                <QEPPanel applyWhatIfChanges={applyWhatIfChanges} qepData={qepData} />
               </Tabs.Panel>
 
               <Tabs.Panel value="whatIf" pt="sm">
