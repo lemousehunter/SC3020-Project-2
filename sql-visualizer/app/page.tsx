@@ -12,6 +12,23 @@ import { Welcome } from '../components/Welcome/Welcome';
 export default function HomePage() {
   const [selectedDatabase, setSelectedDatabase] = useState<string | null>(null);
   const [databases, setDatabases] = useState<{ value: string; label: string }[]>([]);
+  const [modifiedSQL, setModifiedSQL] = useState<string>('');
+  const [qepData, setQepData] = useState<any | null>(null); // State for QEP data
+
+  // Mock QEP Data for demonstration
+  const mockQEPNetworkXData = {
+    nodes: [
+      { id: '1', type: 'Hash Join', table: null, cost: 200 },
+      { id: '2', type: 'Seq Scan', table: 'customer', cost: 100 },
+      { id: '3', type: 'Hash', table: null, cost: 150 },
+      { id: '4', type: 'Seq Scan', table: 'orders', cost: 100 },
+    ],
+    edges: [
+      { source: '1', target: '2' },
+      { source: '1', target: '3' },
+      { source: '3', target: '4' },
+    ],
+  };
 
   // Fetch available databases on component mount
   useEffect(() => {
@@ -36,13 +53,24 @@ export default function HomePage() {
       .catch((error) => console.error('Error setting selected database:', error));
   };
 
+  // Handle query submission
+  const handleQuerySubmit = () => {
+    // For now, we use mock data, but in a real scenario,
+    // you would fetch this from the backend after submitting the query.
+    setQepData(mockQEPNetworkXData);
+  };
+
+  const applyWhatIfChanges = (newSQL: string) => {
+    setModifiedSQL(newSQL);
+  };
+
   return (
     <AppShell
       padding="md"
       styles={{
         main: {
-          height: '100vh', // Full viewport height
-          overflowY: 'auto', // Enables scrolling for long content
+          height: '100vh',
+          overflowY: 'auto',
         },
       }}
     >
@@ -54,7 +82,13 @@ export default function HomePage() {
           <Select
             label="Database"
             placeholder="Select database"
-            data={databases}
+            data={[
+              { value: 'postgresql', label: 'TPC-H' },
+              { value: 'mysql', label: 'TPC-A' },
+              { value: 'oracle', label: 'TPC-B' },
+              { value: 'sqlserver', label: 'TPC-L' },
+            ]}
+            //data={databases}
             value={selectedDatabase}
             onChange={handleDatabaseSelect}
             searchable
@@ -68,7 +102,7 @@ export default function HomePage() {
         <Grid mr="xl" ml="xl">
           {/* Left side: Query Panel */}
           <Grid.Col span={4}>
-            <QueryPanel />
+            <QueryPanel onSubmit={handleQuerySubmit} /> {/* Pass handleQuerySubmit to QueryPanel */}
           </Grid.Col>
 
           {/* Right side */}
@@ -81,11 +115,12 @@ export default function HomePage() {
               </Tabs.List>
 
               <Tabs.Panel value="qep" pt="sm">
-                <QEPPanel />
+                <QEPPanel applyWhatIfChanges={applyWhatIfChanges} qepData={qepData} />{' '}
+                {/* Pass qepData as a prop */}
               </Tabs.Panel>
 
               <Tabs.Panel value="whatIf" pt="sm">
-                <ModifiedSQLPanel />
+                <ModifiedSQLPanel modifiedSQL={modifiedSQL} />
               </Tabs.Panel>
 
               <Tabs.Panel value="aqp" pt="sm">

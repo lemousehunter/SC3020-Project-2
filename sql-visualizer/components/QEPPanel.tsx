@@ -1,89 +1,59 @@
 // components/QEPPanel.tsx
 'use client';
 
-import { useState } from 'react';
-import { Box, Button, Card, List, Select, Text, Title } from '@mantine/core';
-import { mockQEPData } from './mockData';
+import { useEffect, useState } from 'react';
+import Tree from 'react-d3-tree';
+import { Box, Button, Card, Select, Text, Title } from '@mantine/core';
+import { convertNetworkXToTree } from './convertToTree';
 
 interface QEPPanelProps {
-  applyWhatIfChanges: (newSQL: string) => void; // Function to update modified SQL
+  applyWhatIfChanges: (newSQL: string) => void;
+  qepData: any | null;
 }
 
-export default function QEPPanel({ applyWhatIfChanges }: QEPPanelProps) {
-  const [joinType, setJoinType] = useState<string | null>(null);
-  const [scanType, setScanType] = useState<string | null>(null);
-  const [qepData, setQepData] = useState(mockQEPData);
+export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps) {
+  const [qepTreeData, setQepTreeData] = useState<any | null>(null);
 
-  const applyModifications = () => {
-    // Generate a modified SQL query based on the selected join and scan types
-    let modifiedSQL = `
-      SELECT *
-      FROM customer C
-      ${joinType || 'Hash Join'} orders O ON C.c_custkey = O.o_custkey
-    `;
-
-    if (scanType === 'Index Scan') {
-      modifiedSQL += '\nUSING INDEX';
+  useEffect(() => {
+    if (qepData) {
+      // Assume convertNetworkXToTree is a function that converts qepData into tree format
+      const treeData = convertNetworkXToTree(qepData);
+      setQepTreeData(treeData);
     }
-
-    // Update the mock QEP data to reflect the modifications
-    const modifiedQEPData = {
-      ...qepData,
-      nodes: qepData.nodes.map((node) => {
-        if (node.type === 'Hash Join' && joinType) {
-          return { ...node, type: joinType };
-        }
-        if (node.type === 'Seq Scan' && scanType) {
-          return {
-            ...node,
-            type: scanType,
-            cost: scanType === 'Index Scan' ? node.cost - 50 : node.cost + 50,
-          };
-        }
-        return node;
-      }),
-    };
-
-    setQepData(modifiedQEPData);
-    applyWhatIfChanges(modifiedSQL.trim());
-  };
+  }, [qepData]);
 
   return (
     <Card shadow="sm" padding="lg" mt="md">
       <Title order={4}>QEP Panel</Title>
-      <Text mt="sm">Query: {qepData.query}</Text>
-      <Text mt="sm">Total Cost: {qepData.totalCost}</Text>
-
-      {/* Displaying QEP nodes */}
-      <List mt="sm" withPadding>
-        {qepData.nodes.map((node) => (
-          <List.Item key={node.id}>
-            {node.type} on {node.table || node.joinOn} (Cost: {node.cost})
-          </List.Item>
-        ))}
-      </List>
-
-      {/* What-If Modifications Controls */}
-      <Box mt="lg">
-        <Select
-          label="Join Type"
-          placeholder="Select join type"
-          data={['Hash Join', 'Merge Join', 'Nested Loop']}
-          value={joinType}
-          onChange={setJoinType}
-          mt="md"
-        />
-        <Select
-          label="Scan Type"
-          placeholder="Select scan type"
-          data={['Sequential Scan', 'Index Scan']}
-          value={scanType}
-          onChange={setScanType}
-          mt="md"
-        />
-        <Button mt="md" onClick={applyModifications}>
-          Generate AQP
-        </Button>
+      <Text mt="sm">Visualized Query Execution Plan (QEP):</Text>
+      <Box
+        mt="md"
+        style={{
+          height: '400px',
+          width: '100%',
+          backgroundColor: 'rgb(203 213 225)',
+          padding: '20px',
+          borderRadius: '8px',
+        }}
+      >
+        {qepTreeData ? (
+          <Tree
+            data={qepTreeData}
+            orientation="vertical"
+            pathFunc="straight"
+            translate={{ x: 250, y: 100 }} // Adjust starting position if necessary
+            separation={{ siblings: 2, nonSiblings: 2.5 }} // Increase separation between nodes
+            styles={{
+              links: { stroke: '#999', strokeWidth: 2 },
+              nodes: {
+                node: { circle: { fill: '#4285f4', stroke: 'black' }, name: { fontSize: 12 } }, // Optional: Adjust font size
+                leafNode: { circle: { fill: '#4285f4', stroke: 'black' }, name: { fontSize: 12 } },
+              },
+            }}
+          />
+        ) : (
+          <Text>Submit a query to display QEP</Text>
+        )}
       </Box>
     </Card>
   );
