@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { IconX } from '@tabler/icons-react';
+import { IconCheck, IconX } from '@tabler/icons-react';
 import Tree from 'react-d3-tree';
 import {
   Box,
@@ -29,6 +29,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   const [selectedNode, setSelectedNode] = useState<any | null>(null);
   const [pendingChanges, setPendingChanges] = useState<{ id: string; newType: string }[]>([]);
   const [showErrorNotification, setShowErrorNotification] = useState(false);
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
 
   useEffect(() => {
     if (qepData) {
@@ -75,17 +76,16 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   const updateTreeData = (treeData: any, nodeId: string, newType: string) => {
     if (treeData.id === nodeId) {
       treeData.type = newType;
-      // Update the node name without including cost in the modified tree
       treeData.name = newType;
     } else if (treeData.children) {
       treeData.children.forEach((child: any) => updateTreeData(child, nodeId, newType));
     }
   };
 
-  const generateAQP = () => {
+  const generateAQP = async () => {
     if (pendingChanges.length === 0) {
       setShowErrorNotification(true);
-      setTimeout(() => setShowErrorNotification(false), 3000); // Hide notification after 3 seconds
+      setTimeout(() => setShowErrorNotification(false), 3000);
       return;
     }
 
@@ -94,7 +94,33 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
       .join('\n');
 
     applyWhatIfChanges(modifiedSQL);
-    setPendingChanges([]); // Clear pending changes after generating AQP
+
+    // Send modified tree data to backend
+    // try {
+    //   const response = await fetch('/api/aqp/generate', {
+    //     method: 'POST',
+    //     headers: { 'Content-Type': 'application/json' },
+    //     body: JSON.stringify({ modifiedTree: modifiedTreeData }),
+    //   });
+
+    //   if (response.ok) {
+    //     setShowSuccessNotification(true);
+    //     setModifiedTreeData(null); // Clear modified tree after success
+    //     setPendingChanges([]);
+    //   } else {
+    //     throw new Error('Failed to send AQP data');
+    //   }
+    // } catch (error) {
+    //   console.error('Error sending AQP data:', error);
+    //   setShowErrorNotification(true);
+    // } finally {
+    //   // Hide notifications after 3 seconds
+    //   setTimeout(() => {
+    //     setShowErrorNotification(false);
+    //     setShowSuccessNotification(false);
+    //   }, 3000);
+    // }
+    setShowSuccessNotification(true);
   };
 
   const renderCustomNode = ({ nodeDatum, hierarchyPointNode }: any) => {
@@ -103,7 +129,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
     return (
       <g>
         <circle
-          r={15} // Make selected nodes slightly larger
+          r={15}
           fill={nodeDatum.isLeaf ? (isSelected ? 'red' : 'white') : isSelected ? 'red' : 'black'}
           stroke={isSelected ? 'red' : 'black'}
           strokeWidth={isSelected ? 3 : 1}
@@ -121,7 +147,6 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
       <Title order={4}>QEP Panel</Title>
       <Text>Visualized Query Execution Plan (QEP):</Text>
 
-      {/* Container for the two side-by-side trees */}
       <Box
         mt="md"
         style={{
@@ -134,7 +159,6 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
           borderRadius: '8px',
         }}
       >
-        {/* Original QEP Tree */}
         <Box
           style={{
             width: pendingChanges.length > 0 ? '50%' : '100%',
@@ -160,16 +184,12 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
           )}
         </Box>
 
-        {/* Only display the divider and modified QEP tree if there are modifications */}
         {pendingChanges.length > 0 && (
           <>
-            {/* Vertical Divider */}
             <Divider
               orientation="vertical"
               style={{ height: '100%', flexShrink: 0, margin: '0 10px', backgroundColor: 'black' }}
             />
-
-            {/* Modified QEP Tree */}
             <Box style={{ width: '50%', padding: '10px', height: '350px' }}>
               <Title order={5} style={{ color: 'black' }}>
                 Modified QEP
@@ -192,7 +212,6 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         )}
       </Box>
 
-      {/* Modification controls */}
       {selectedNode && (
         <Box mt="md" mb="md">
           <Text>
@@ -234,7 +253,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         <Notification
           color="red"
           icon={<IconX size={18} />}
-          title="No changes detected"
+          title="Error"
           style={{
             position: 'fixed',
             bottom: 20,
@@ -242,7 +261,23 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
           }}
           onClose={() => setShowErrorNotification(false)}
         >
-          Please modify the scan or join type before generating AQP.
+          An error occurred while sending the AQP data.
+        </Notification>
+      )}
+
+      {showSuccessNotification && (
+        <Notification
+          color="teal"
+          icon={<IconCheck size={18} />}
+          title="Success"
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            left: 20,
+          }}
+          onClose={() => setShowSuccessNotification(false)}
+        >
+          The AQP was generated successfully.
         </Notification>
       )}
     </Card>
