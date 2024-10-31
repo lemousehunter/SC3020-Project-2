@@ -20,8 +20,8 @@ export default function QueryPanel() {
         value={query}
         onChange={(e) => setQuery(e.currentTarget.value)}
         autosize
-        minRows={3}
-        maxRows={6}
+        minRows={12}
+        maxRows={150}
         mt="sm"
       />
       <Button mt="md" onClick={handleQuerySubmit}>
