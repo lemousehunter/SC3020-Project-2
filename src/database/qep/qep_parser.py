@@ -114,6 +114,44 @@ class QEPParser:
             tables.update(child_tables)
         return tables
 
+    def _find_join_tables(self, node_data: Dict[str, Any], child_nodes: List[str]) -> Set[str]:
+        """
+        Find the two tables being joined at this node by looking at join conditions
+        and immediate child nodes.
+        """
+        tables = set()
+
+        # First check if we can determine tables from join conditions
+        if 'Hash Cond' in node_data:
+            tables_from_cond, _ = self._process_join_condition(node_data['Hash Cond'])
+            tables.update(tables_from_cond)
+        elif 'Merge Cond' in node_data:
+            tables_from_cond, _ = self._process_join_condition(node_data['Merge Cond'])
+            tables.update(tables_from_cond)
+        elif 'Join Filter' in node_data:
+            tables_from_cond, _ = self._process_join_condition(node_data['Join Filter'])
+            tables.update(tables_from_cond)
+
+        # If we couldn't get tables from conditions, look at immediate children
+        if not tables and len(child_nodes) == 2:
+            for child_id in child_nodes:
+                child_data = self.graph.nodes[child_id]
+                child_tables = child_data.get('tables', set())
+                if len(child_tables) == 1:  # Only take leaf tables
+                    tables.update(child_tables)
+                elif len(child_tables) == 0:
+                    # If child has no tables, recursively look at its children
+                    grandchild_nodes = list(self.graph.neighbors(child_id))
+                    if grandchild_nodes:
+                        for grandchild_id in grandchild_nodes:
+                            grandchild_data = self.graph.nodes[grandchild_id]
+                            grandchild_tables = grandchild_data.get('tables', set())
+                            if len(grandchild_tables) == 1:
+                                tables.update(grandchild_tables)
+                                break  # Only take the first leaf table found
+
+        return tables
+
     def _parse_node(self, node_data: Dict[str, Any], parent_id: Optional[str] = None, is_root: bool = False) -> str:
         """Parse a single node and its children."""
         node_id = str(uuid.uuid4())
@@ -127,27 +165,27 @@ class QEPParser:
                 child_id = self._parse_node(child_plan, node_id, is_root=False)
                 child_nodes.append(child_id)
 
-        # Extract tables and conditions from this node
-        node_tables, node_conditions = self._extract_tables(node_data)
-        tables.update(node_tables)
-        conditions.extend(node_conditions)
-
-        # For join nodes, include tables from all children
+        # Extract tables and conditions based on node type
         node_type = node_data.get('Node Type', '')
-        if 'Join' in node_type or node_type in ['Nested Loop']:
-            child_tables = self._get_child_tables(child_nodes)
-            tables.update(child_tables)
-        elif node_type == 'Materialize':
-            # For Materialize nodes, propagate tables from child
-            child_tables = self._get_child_tables(child_nodes)
-            tables.update(child_tables)
+
+        if 'Join' in node_type or node_type == 'Nested Loop':
+            # For join nodes, find the two tables being joined
+            tables = self._find_join_tables(node_data, child_nodes)
+            # Extract join conditions
+            node_tables, node_conditions = self._extract_join_info(node_data)
+            conditions.extend(node_conditions)
+        else:
+            # For non-join nodes, extract tables and conditions normally
+            node_tables, node_conditions = self._extract_tables(node_data)
+            tables.update(node_tables)
+            conditions.extend(node_conditions)
 
         node_attrs = {
             'node_type': node_type,
             'tables': sorted(tables),  # Sort for consistent ordering
             'cost': node_data.get('Total Cost', 0.0),
             'is_root': is_root,
-            'conditions': conditions  # Add join conditions to node attributes
+            'conditions': conditions
         }
 
         # Add node to graph

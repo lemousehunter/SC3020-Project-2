@@ -32,7 +32,9 @@ class DatabaseManager:
 
     def get_qep(self, query):
         cursor = self.connection.cursor()
-        cursor.execute("EXPLAIN (FORMAT JSON) " + query)
+        to_execute = "EXPLAIN (FORMAT JSON) " + query
+        print("========== TO EXECUTE ==========\n", to_execute)
+        cursor.execute(to_execute)
         result = cursor.fetchall()
         result = result
         return result

@@ -32,28 +32,66 @@ class QueryConstructor:
         self.table_aliases = self._collect_table_aliases()
         self.join_conditions = self._collect_join_conditions()
         self.join_order = self._determine_join_order()
-        print(self.join_order)
+        self._print_join_order()
+
+    def _print_join_order(self):
+        print("============== JOIN ORDER ==============")
+        for join in self.join_order:
+            print(join['type'], join['tables'], join['conditions'])
+        print("========================================")
 
     def _collect_table_aliases(self) -> Dict[str, str]:
         """
         Collect table aliases from the graph nodes.
-        Returns a dict mapping table names to their aliases.
+        Returns a dict mapping table names to their lowercase aliases.
         """
         aliases = {}
         # Look for leaf nodes (no outgoing edges) which are typically scan nodes
         for node, data in self.graph.nodes(data=True):
             if len(list(self.graph.neighbors(node))) == 0:  # Leaf node
                 if data['tables'] and len(data['tables']) == 1:
-                    table = list(data['tables'])[0]
-                    # Create default alias as first letter of table name
+                    table = data['tables'][0]
+                    # Create lowercase alias as first letter of table name
                     alias = table[0].lower()
                     aliases[table] = alias
         return aliases
 
+    def _get_leading_hint(self) -> str:
+        """
+        Generate Leading() hint based on the determined join order.
+        Returns a string like 'Leading(table1 table2 (table3 table4))'
+        """
+        if not self.join_order:
+            return ""
+
+        # Extract tables in join order
+        tables_in_order = []
+        processed_tables = set()
+
+        # Start with the first join's tables
+        first_join = self.join_order[0]
+        first_tables = list(first_join['tables'])
+        # Convert to aliases and add to the list
+        tables_in_order.extend(self.table_aliases[t] for t in first_tables)
+        processed_tables.update(first_tables)
+
+        # Process remaining joins
+        for join in self.join_order[1:]:
+            new_tables = join['tables'] - processed_tables
+            if new_tables:
+                # Convert to aliases and add to the list
+                tables_in_order.extend(self.table_aliases[t] for t in new_tables)
+                processed_tables.update(new_tables)
+
+        # Construct the Leading hint
+        if tables_in_order:
+            return f"Leading({' '.join(tables_in_order)})"
+        return ""
+
     def _is_valid_condition(self, condition: str) -> bool:
         """
         Check if a condition is valid for inclusion in the SQL query.
-        Filters out internal execution plan constructs.
+        Filters out internal execution plan constructs and handles subqueries.
         """
         invalid_patterns = [
             'SubPlan',
@@ -61,7 +99,21 @@ class QueryConstructor:
             '(SubPlan',
             '(InitPlan',
         ]
-        return not any(pattern in condition for pattern in invalid_patterns)
+        if any(pattern in condition for pattern in invalid_patterns):
+            return False
+
+        # Additional validation for subquery conditions
+        if '(' in condition and ')' in condition:
+            depth = 0
+            for char in condition:
+                if char == '(':
+                    depth += 1
+                elif char == ')':
+                    depth -= 1
+                if depth < 0:  # Unmatched parentheses
+                    return False
+            return depth == 0
+        return True
 
     def _collect_join_conditions(self) -> List[str]:
         """
@@ -80,7 +132,8 @@ class QueryConstructor:
                             aliased_condition = aliased_condition.replace(
                                 f"{table}.", f"{alias}."
                             )
-                        conditions.append(aliased_condition)
+                        if aliased_condition not in conditions:
+                            conditions.append(aliased_condition)
         return conditions
 
     def _get_scan_hint(self, node_data: Dict) -> str:
@@ -116,24 +169,31 @@ class QueryConstructor:
             'Merge Join': f'MergeJoin({" ".join(aliases)})'
         }
 
+        print("getting hint for node:", node_type)
+
         return join_hint_map.get(node_type, '')
 
     def _collect_hints(self) -> List[str]:
         """
-        Collect all hints from the graph nodes.
+        Collect all hints from the graph nodes, including the Leading hint.
         """
         hints = []
 
-        # Process scan nodes first
+        # Add Leading hint first to enforce join order
+        leading_hint = self._get_leading_hint()
+        if leading_hint:
+            hints.append(leading_hint)
+
+        # Process scan nodes
         for node, data in self.graph.nodes(data=True):
             if len(data['tables']) == 1:  # Scan node
                 hint = self._get_scan_hint(data)
                 if hint:
                     hints.append(hint)
 
-        # Then process join nodes
+        # Process join nodes
         for node, data in self.graph.nodes(data=True):
-            if 'Join' in data['node_type']:
+            if 'Join' in data['node_type'] or data['node_type'] == "Nested Loop":
                 hint = self._get_join_hint(data)
                 if hint:
                     hints.append(hint)
@@ -142,32 +202,19 @@ class QueryConstructor:
 
     def _determine_join_order(self) -> List[Dict]:
         """
-        Determine the join order by traversing the QEP tree from top down,
-        starting from the root join node or the join node closest to root.
-        Returns a list of join operations in execution order.
+        Determine the join order by traversing from root to leaves.
+        Joins closer to the root should be processed first.
         """
         joins = []
         visited = set()
 
-        def get_root_or_nearest_join():
-            """Find the root node or the nearest join node to root."""
-            root = [n for n, d in self.graph.nodes(data=True) if d.get('is_root', False)][0]
-            node = root
-            node_data = self.graph.nodes[node]
+        # Find root node
+        root = [n for n, d in self.graph.nodes(data=True) if d.get('is_root', False)][0]
 
-            # If root is not a join, traverse down until we find the first join
-            if 'Join' not in node_data['node_type']:
-                queue = list(self.graph.neighbors(node))
-                while queue:
-                    curr_node = queue.pop(0)
-                    curr_data = self.graph.nodes[curr_node]
-                    if 'Join' in curr_data['node_type']:
-                        return curr_node
-                    queue.extend(list(self.graph.neighbors(curr_node)))
-            return node
-
-        def traverse_joins(node_id):
-            """Traverse the join nodes from top to bottom."""
+        def traverse_top_down(node_id: str, level: int = 0):
+            """
+            Traverse the tree from top to bottom, recording joins in order.
+            """
             if node_id in visited:
                 return
             visited.add(node_id)
@@ -175,9 +222,8 @@ class QueryConstructor:
             node_data = self.graph.nodes[node_id]
             node_type = node_data.get('node_type', '')
 
-            # Record join information first (top-down approach)
-            if 'Join' in node_type:
-                # Filter conditions
+            # Process current node if it's a join
+            if 'Join' in node_type or node_type == 'Nested Loop':
                 valid_conditions = [
                     cond for cond in node_data.get('conditions', [])
                     if self._is_valid_condition(cond)
@@ -187,26 +233,20 @@ class QueryConstructor:
                     'node_id': node_id,
                     'type': node_type,
                     'tables': set(node_data.get('tables', [])),
-                    'conditions': valid_conditions
+                    'conditions': valid_conditions,
+                    'level': level  # Add level for sorting
                 })
 
-            # Then process child nodes
-            children = list(self.graph.neighbors(node_id))
-            for child in children:
-                child_data = self.graph.nodes[child]
-                # Ensure we process join nodes before other types
-                if 'Join' in child_data.get('node_type', ''):
-                    traverse_joins(child)
+            # Process children
+            for child in self.graph.neighbors(node_id):
+                traverse_top_down(child, level + 1)
 
-            # Process non-join children last
-            for child in children:
-                child_data = self.graph.nodes[child]
-                if 'Join' not in child_data.get('node_type', ''):
-                    traverse_joins(child)
+        # Start traversal from root
+        traverse_top_down(root)
 
-        # Start traversal from root join or nearest join to root
-        start_node = get_root_or_nearest_join()
-        traverse_joins(start_node)
+        # Sort joins by level (ascending) to ensure top-down order
+        joins.sort(key=lambda x: x['level'])
+
         return joins
 
     def _clean_table_name(self, table_name: str) -> str:
@@ -245,69 +285,94 @@ class QueryConstructor:
 
     def _build_join_tree(self) -> str:
         """
-        Build the FROM clause following the join condition order.
+        Build the FROM clause following the join order strictly from the join nodes.
+        Uses table pairs defined in each join node.
         """
+        if not self.join_order:
+            return ""
+
         processed_tables = set()
         join_clauses = []
-        table_order = []
+        non_join_conditions = []
 
-        # Process each join in order
-        for join in self.join_order:
-            for condition in join.get('conditions', []):
-                if not self._is_valid_condition(condition):
-                    continue
+        def get_join_conditions(node_id: str, tables: Set[str]) -> List[str]:
+            """Get join conditions for specific tables from a node."""
+            conditions = []
+            node_data = self.graph.nodes[node_id]
 
-                # Extract tables in order from the condition
-                tables_in_condition = self._extract_tables_from_condition(condition)
+            for condition in node_data.get('conditions', []):
+                if self._is_valid_condition(condition):
+                    # Replace table names with aliases in the condition
+                    aliased_condition = condition
+                    for table, alias in self.table_aliases.items():
+                        aliased_condition = aliased_condition.replace(f"{table}.", f"{alias}.")
 
-                # Add tables to the order if not already processed
-                for table in tables_in_condition:
-                    if table not in table_order:
-                        table_order.append(table)
+                    # Check if this is a join condition (contains =)
+                    if '=' in aliased_condition:
+                        tables_in_cond = set(self._extract_tables_from_condition(condition))
+                        # Only include if condition involves the tables we're joining
+                        if tables_in_cond.issubset(tables):
+                            conditions.append(aliased_condition)
+                    else:
+                        # Store non-join conditions for the WHERE clause
+                        if aliased_condition not in non_join_conditions:
+                            non_join_conditions.append(aliased_condition)
 
-                # First table in the condition that hasn't been processed becomes the next table to join
-                tables_to_join = [t for t in tables_in_condition if t not in processed_tables]
+            return conditions
 
-                if not tables_to_join:
-                    continue
+        # Start with the first join
+        first_join = self.join_order[0]
+        tables_to_join = first_join['tables']
+        first_table = next(iter(tables_to_join))
+        first_alias = self.table_aliases[first_table]
+        base_query = f"{first_table} {first_alias}"
+        processed_tables.add(first_table)
 
-                # First table becomes base table if we haven't started yet
-                if not processed_tables:
-                    first_table = tables_to_join[0]
-                    first_alias = self.table_aliases[first_table]
-                    base_query = f"{first_table} {first_alias}"
-                    processed_tables.add(first_table)
-                    tables_to_join = tables_to_join[1:]
+        # Add remaining tables from first join
+        remaining_tables = tables_to_join - {first_table}
+        if remaining_tables:
+            table = next(iter(remaining_tables))
+            alias = self.table_aliases[table]
+            conditions = get_join_conditions(first_join['node_id'], tables_to_join)
+            if conditions:
+                join_clauses.append(f"JOIN {table} {alias} ON {' AND '.join(conditions)}")
+            else:
+                join_clauses.append(f"CROSS JOIN {table} {alias}")
+            processed_tables.add(table)
 
-                # Create join clauses for remaining tables
-                for table in tables_to_join:
-                    alias = self.table_aliases[table]
-                    # Find all conditions involving this table and already processed tables
-                    relevant_conditions = []
-                    for join_cond in join.get('conditions', []):
-                        if self._is_valid_condition(join_cond):
-                            # Replace table names with aliases in conditions
-                            aliased_condition = join_cond
-                            for t, a in self.table_aliases.items():
-                                aliased_condition = aliased_condition.replace(f"{t}.", f"{a}.")
+        # Process remaining joins in order
+        for join in self.join_order[1:]:
+            join_tables = join['tables']
+            # Get tables not yet processed
+            new_tables = join_tables - processed_tables
+            if not new_tables:
+                continue
 
-                            # Check if condition involves current table and any processed table
-                            tables_in_cond = self._extract_tables_from_condition(join_cond)
-                            if table in tables_in_cond and any(t in processed_tables for t in tables_in_cond):
-                                relevant_conditions.append(aliased_condition)
+            # Add each new table with appropriate conditions
+            for table in new_tables:
+                alias = self.table_aliases[table]
+                # Get conditions involving this table and any processed tables
+                relevant_tables = {table} | (join_tables & processed_tables)
+                conditions = get_join_conditions(join['node_id'], relevant_tables)
 
-                    join_clause = f"JOIN {table} {alias}"
-                    if relevant_conditions:
-                        join_clause += f" ON {' AND '.join(relevant_conditions)}"
-                    join_clauses.append(join_clause)
-                    processed_tables.add(table)
+                if conditions:
+                    join_clauses.append(f"JOIN {table} {alias} ON {' AND '.join(conditions)}")
+                else:
+                    join_clauses.append(f"CROSS JOIN {table} {alias}")
+                processed_tables.add(table)
 
-        # Handle case where no join conditions exist
-        if not processed_tables:
-            first_table = next(iter(self.table_aliases.keys()))
-            base_query = f"{first_table} {self.table_aliases[first_table]}"
+        # Build the complete query
+        query_parts = [base_query]
+        if join_clauses:
+            query_parts.extend(join_clauses)
 
-        return f"{base_query}\n{' '.join(join_clauses)}"
+        query = "\n".join(query_parts)
+
+        # Add WHERE clause for non-join conditions
+        if non_join_conditions:
+            query += f"\nWHERE {' AND '.join(non_join_conditions)}"
+
+        return query
 
     def construct_query(self) -> str:
         """
@@ -324,9 +389,30 @@ class QueryConstructor:
         columns = ", ".join(f"{alias}.*" for _, alias in sorted_aliases)
 
         # Build the query
-        query = f"{hint_clause} SELECT {columns} FROM {self._build_join_tree()}"
+        join_tree = self._build_join_tree()
+        query = f"{hint_clause} SELECT {columns} FROM {join_tree}"
 
-        return query
+        return query.strip()
+
+    def construct_query(self) -> str:
+        """
+        Construct the complete SQL query with hints.
+        """
+        # Sort aliases for consistent output
+        sorted_aliases = sorted(self.table_aliases.items(), key=lambda x: x[1])
+
+        # Collect all hints
+        hints = self._collect_hints()
+        hint_clause = f"/*+ {' '.join(hints)} */" if hints else ""
+
+        # Build column selection with aliases
+        columns = ", ".join(f"{alias}.*" for _, alias in sorted_aliases)
+
+        # Build the query
+        join_tree = self._build_join_tree()
+        query = f"{hint_clause} SELECT {columns} FROM {join_tree}"
+
+        return query.strip()
 
 
 
@@ -372,8 +458,8 @@ where C.c_custkey = O.o_custkey
 
     # 4. Apply modifications
     modifier = QueryModifier(original_graph)
-    #modifier.add_modification(scan_modification)
-    #modifier.add_modification(join_modification)
+    modifier.add_modification(scan_modification)
+    modifier.add_modification(join_modification)
 
     modified_graph = modifier.apply_modifications()
     QEPVisualizer(modified_graph).visualize(VIZ_DIR / "modified_pre-explained_qep_tree.png")
