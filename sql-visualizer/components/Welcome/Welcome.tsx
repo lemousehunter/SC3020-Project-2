@@ -4,7 +4,7 @@ import classes from './Welcome.module.css';
 export function Welcome() {
   return (
     <>
-      <Title className={classes.title} ta="center" mt={70}>
+      <Title className={classes.title} ta="center" mt={50}>
         Query Plan Analyzer{' '}
         <Text inherit variant="gradient" component="span" gradient={{ from: 'pink', to: 'yellow' }}>
           Group 32
