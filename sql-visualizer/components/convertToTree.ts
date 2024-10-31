@@ -10,6 +10,10 @@ export function convertNetworkXToTree(networkXData: any) {
     const label = `${node.type} (${costLabel})\n${tableLabel}`; // Place cost first, then table on new line if it exists
 
     nodeMap.set(node.id, {
+      id: node.id,
+      type: node.type,
+      cost: node.cost,
+      isLeaf: node.isLeaf, // Include isLeaf in each node
       name: label,
       children: [],
     });

@@ -34,10 +34,10 @@ export default function HomePage() {
   // Mock QEP Data for demonstration
   const mockQEPNetworkXData = {
     nodes: [
-      { id: '1', type: 'Hash Join', table: null, cost: 200 },
-      { id: '2', type: 'Seq Scan', table: 'customer', cost: 100 },
-      { id: '3', type: 'Hash', table: null, cost: 150 },
-      { id: '4', type: 'Seq Scan', table: 'orders', cost: 100 },
+      { id: '1', type: 'Hash Join', table: null, cost: 200, isLeaf: false },
+      { id: '2', type: 'Seq Scan', table: 'customer', cost: 100, isLeaf: true },
+      { id: '3', type: 'Hash', table: null, cost: 150, isLeaf: false },
+      { id: '4', type: 'Seq Scan', table: 'orders', cost: 100, isLeaf: true },
     ],
     edges: [
       { source: '1', target: '2' },
