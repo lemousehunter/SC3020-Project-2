@@ -1,21 +1,17 @@
 // utils/convertToTree.ts
-import { NetworkXData, Node } from './types';
-
 export function convertNetworkXToTree(networkXData: any) {
   const nodeMap = new Map();
 
   networkXData.nodes.forEach((node: any) => {
-    const costLabel = `${node.cost}`;
-    const tableLabel = node.table ? `\n${node.table}` : ''; // Add newline if table exists
-    const label = `${node.type} (${costLabel})\n${tableLabel}`; // Place cost first, then table on new line if it exists
+    const tableLabel = node.table ? ` (${node.table})` : ''; // Only add table if it exists
+    const label = `${node.type}${tableLabel}`; // Exclude cost from the label
 
     nodeMap.set(node.id, {
       id: node.id,
       type: node.type,
-      cost: node.cost,
-      isLeaf: node.isLeaf, // Include isLeaf in each node
       name: label,
       children: [],
+      isLeaf: node.isLeaf,
     });
   });
 

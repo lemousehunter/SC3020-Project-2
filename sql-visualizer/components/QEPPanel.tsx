@@ -3,7 +3,17 @@
 import { useEffect, useState } from 'react';
 import { IconX } from '@tabler/icons-react';
 import Tree from 'react-d3-tree';
-import { Box, Button, Card, Notification, Select, Text, Title } from '@mantine/core';
+import {
+  Box,
+  Button,
+  Card,
+  Divider,
+  Group,
+  Notification,
+  Select,
+  Text,
+  Title,
+} from '@mantine/core';
 import { convertNetworkXToTree } from './convertToTree';
 
 import './custom-tree.css';
@@ -24,31 +34,32 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
     if (qepData) {
       const treeData = convertNetworkXToTree(qepData);
       setQepTreeData(treeData);
-      setModifiedTreeData(treeData); // Initially, the modified tree is the same as the original
+      setModifiedTreeData(JSON.parse(JSON.stringify(treeData))); // Initialize modifiedTreeData without costs
     }
   }, [qepData]);
 
   const handleNodeClick = (node: any) => {
-    console.log(node);
     const nodeId = node.data.id || 'Unknown ID';
     const nodeType = node.data.type || 'Unknown Type';
-    const nodeCost = node.data.cost || 'Unknown Cost';
     const isLeaf = node.data.isLeaf || false;
 
-    setSelectedNode({ id: nodeId, type: nodeType, cost: nodeCost, isLeaf });
+    setSelectedNode({ id: nodeId, type: nodeType, isLeaf });
   };
 
-  const handleScanChange = (value: string) => {
-    setSelectedNode((prevNode: any) => ({ ...prevNode, newType: value }));
+  const handleScanChange = (value: string | null) => {
+    if (value !== null) {
+      setSelectedNode((prevNode: any) => ({ ...prevNode, newType: value }));
+    }
   };
 
-  const handleJoinChange = (value: string) => {
-    setSelectedNode((prevNode: any) => ({ ...prevNode, newType: value }));
+  const handleJoinChange = (value: string | null) => {
+    if (value !== null) {
+      setSelectedNode((prevNode: any) => ({ ...prevNode, newType: value }));
+    }
   };
 
   const confirmChange = () => {
     if (selectedNode && selectedNode.newType) {
-      // Update the modified tree data with the new change
       const updatedTreeData = JSON.parse(JSON.stringify(modifiedTreeData));
       updateTreeData(updatedTreeData, selectedNode.id, selectedNode.newType);
       setModifiedTreeData(updatedTreeData);
@@ -64,6 +75,8 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   const updateTreeData = (treeData: any, nodeId: string, newType: string) => {
     if (treeData.id === nodeId) {
       treeData.type = newType;
+      // Update the node name without including cost in the modified tree
+      treeData.name = newType;
     } else if (treeData.children) {
       treeData.children.forEach((child: any) => updateTreeData(child, nodeId, newType));
     }
@@ -71,13 +84,11 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
 
   const generateAQP = () => {
     if (pendingChanges.length === 0) {
-      // Show error notification if no changes were made
       setShowErrorNotification(true);
       setTimeout(() => setShowErrorNotification(false), 3000); // Hide notification after 3 seconds
       return;
     }
 
-    console.log('Generating AQP with the following changes:', pendingChanges);
     const modifiedSQL = pendingChanges
       .map((change) => `Change node ${change.id} to ${change.newType}`)
       .join('\n');
@@ -109,58 +120,104 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
     <Card shadow="sm" padding="lg" mt="md">
       <Title order={4}>QEP Panel</Title>
       <Text>Visualized Query Execution Plan (QEP):</Text>
+
+      {/* Container for the two side-by-side trees */}
       <Box
         mt="md"
         style={{
-          height: '400px',
+          display: 'flex',
+          flexDirection: 'row',
+          gap: '20px',
           width: '100%',
           backgroundColor: 'rgb(203 213 225)',
           padding: '20px',
           borderRadius: '8px',
         }}
       >
-        {qepTreeData ? (
-          <Tree
-            data={modifiedTreeData || qepTreeData}
-            orientation="vertical"
-            pathFunc="straight"
-            translate={{ x: 250, y: 100 }}
-            separation={{ siblings: 2, nonSiblings: 2.5 }}
-            renderCustomNodeElement={renderCustomNode}
-            collapsible={false} // Disable collapsing on click
-          />
-        ) : (
-          <Text style={{ color: 'grey' }}>Submit a query to display QEP</Text>
+        {/* Original QEP Tree */}
+        <Box
+          style={{
+            width: pendingChanges.length > 0 ? '50%' : '100%',
+            height: '350px',
+            padding: '10px',
+          }}
+        >
+          <Title order={5} style={{ color: 'black' }}>
+            Original QEP
+          </Title>
+          {qepTreeData ? (
+            <Tree
+              data={qepTreeData}
+              orientation="vertical"
+              pathFunc="straight"
+              translate={{ x: 200, y: 50 }}
+              separation={{ siblings: 2, nonSiblings: 2.5 }}
+              renderCustomNodeElement={renderCustomNode}
+              collapsible={false}
+            />
+          ) : (
+            <Text style={{ color: 'grey' }}>Loading original QEP...</Text>
+          )}
+        </Box>
+
+        {/* Only display the divider and modified QEP tree if there are modifications */}
+        {pendingChanges.length > 0 && (
+          <>
+            {/* Vertical Divider */}
+            <Divider
+              orientation="vertical"
+              style={{ height: '100%', flexShrink: 0, margin: '0 10px', backgroundColor: 'black' }}
+            />
+
+            {/* Modified QEP Tree */}
+            <Box style={{ width: '50%', padding: '10px', height: '350px' }}>
+              <Title order={5} style={{ color: 'black' }}>
+                Modified QEP
+              </Title>
+              {modifiedTreeData ? (
+                <Tree
+                  data={modifiedTreeData}
+                  orientation="vertical"
+                  pathFunc="straight"
+                  translate={{ x: 200, y: 50 }}
+                  separation={{ siblings: 2, nonSiblings: 2.5 }}
+                  renderCustomNodeElement={renderCustomNode}
+                  collapsible={false}
+                />
+              ) : (
+                <Text style={{ color: 'grey' }}>Loading modified QEP...</Text>
+              )}
+            </Box>
+          </>
         )}
       </Box>
 
+      {/* Modification controls */}
       {selectedNode && (
-        <Box mt="md">
+        <Box mt="md" mb="md">
           <Text>
-            Modify Node: {selectedNode.type} (ID: {selectedNode.id}) - Cost: {selectedNode.cost}
+            Modify Node: {selectedNode.type} (ID: {selectedNode.id})
           </Text>
-          {selectedNode.isLeaf ? (
-            <Select
-              label="Change Scan Type"
-              placeholder="Select scan type"
-              data={['Sequential Scan', 'Index Scan']}
-              value={selectedNode.newType || ''}
-              onChange={handleScanChange}
-              mt="md"
-            />
-          ) : (
-            <Select
-              label="Change Join Type"
-              placeholder="Select join type"
-              data={['Hash Join', 'Merge Join', 'Nested Loop']}
-              value={selectedNode.newType || ''}
-              onChange={handleJoinChange}
-              mt="md"
-            />
-          )}
-          <Button mt="md" onClick={confirmChange}>
-            Confirm Change
-          </Button>
+          <Group mt="md" spacing="sm" align="flex-end">
+            {selectedNode.isLeaf ? (
+              <Select
+                label="Change Scan Type"
+                placeholder="Select scan type"
+                data={['Seq Scan', 'Index Scan', 'Index Only Scan', 'Bitmap Heap Scan', 'Tid Scan']}
+                value={selectedNode.newType || ''}
+                onChange={handleScanChange}
+              />
+            ) : (
+              <Select
+                label="Change Join Type"
+                placeholder="Select join type"
+                data={['Hash Join', 'Merge Join', 'Nested Loop']}
+                value={selectedNode.newType || ''}
+                onChange={handleJoinChange}
+              />
+            )}
+            <Button onClick={confirmChange}>Confirm Change</Button>
+          </Group>
         </Box>
       )}
 
