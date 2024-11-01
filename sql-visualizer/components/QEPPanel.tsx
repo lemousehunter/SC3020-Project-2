@@ -33,8 +33,39 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
   const [qepTranslate, setQepTranslate] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [aqpTranslate, setAqpTranslate] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [qepZoom, setQepZoom] = useState(0.7); // Initial zoom level for QEP
-  const [aqpZoom, setAqpZoom] = useState(0.7); // Initial zoom level for AQP
+  const [qepZoom, setQepZoom] = useState(0.8); // Initial zoom level for QEP
+  const [aqpZoom, setAqpZoom] = useState(0.8); // Initial zoom level for AQP
+  const [modifiedSQL, setModifiedSQL] = useState<string>('');
+
+  const mockAQPResponse = {
+    modifiedSQL: 'SELECT * FROM orders JOIN customers ON ...', // Modified SQL
+    totalCostOriginalQEP: 500,
+    totalCostAQP: 400,
+    aqpData: {
+      nodes: [
+        { id: '1', type: 'Nested Loop', table: 'orders, customers', cost: 120, node_type: 'JOIN' },
+        { id: '2', type: 'Index Scan', table: 'customers', cost: 80, node_type: 'SCAN' },
+        { id: '3', type: 'Hash', table: 'orders', cost: 200, node_type: 'JOIN' },
+        { id: '4', type: 'Seq Scan', table: 'orders', cost: 150, node_type: 'SCAN' },
+      ],
+      edges: [
+        { source: '1', target: '2' },
+        { source: '1', target: '3' },
+        { source: '3', target: '4' },
+      ],
+    },
+    hints: {
+      Leading: 'Leading((((l s) o) c))',
+      HashJoin_ls: 'HashJoin(l s)',
+      HashJoin_los: 'HashJoin(l o s)',
+      SeqScan_l: 'SeqScan(l)',
+      SeqScan_s: 'SeqScan(s)',
+      IndexScan_l: 'IndexScan(l)',
+      IndexScan_s: 'IndexScan(s)',
+      SeqScan_o: 'SeqScan(o)',
+      BitmapScan_c: 'BitmapScan(c)',
+    },
+  };
 
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
@@ -118,7 +149,6 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   };
 
   const generateAQP = async () => {
-    console.log(pendingChanges.length);
     if (pendingChanges.length === 0) {
       setShowErrorNotification(true);
       setTimeout(() => setShowErrorNotification(false), 3000);
@@ -139,7 +169,11 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
       }),
     };
 
-    console.log(exampleModificationRequest);
+    setModifiedSQL(mockAQPResponse.modifiedSQL);
+
+    applyWhatIfChanges(mockAQPResponse.modifiedSQL); // Use callback to pass modified SQL back to HomePage
+
+    setShowSuccessNotification(true);
 
     // try {
     //   const response = await fetch('/your-backend-endpoint', {
@@ -321,7 +355,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
               orientation="vertical"
               style={{ height: '100%', flexShrink: 0, margin: '0 10px', backgroundColor: 'black' }}
             />
-            <Box style={{ width: '50%', padding: '10px', height: '350px' }}>
+            <Box style={{ width: '50%', padding: '10px', height: '450px' }}>
               <Title order={5} style={{ color: 'black' }}>
                 Preview of AQP
               </Title>

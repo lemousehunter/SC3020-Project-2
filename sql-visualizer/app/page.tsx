@@ -15,7 +15,6 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import AQPPanel from '../components/AQPPanel';
 import { ColorSchemeToggle } from '../components/ColorSchemeToggle/ColorSchemeToggle';
 import ModifiedSQLPanel from '../components/ModifiedSQLPanel';
 import QEPPanel from '../components/QEPPanel';
