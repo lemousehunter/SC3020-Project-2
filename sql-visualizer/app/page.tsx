@@ -13,6 +13,7 @@ import {
   Select,
   Stack,
   Tabs,
+  Title,
 } from '@mantine/core';
 import AQPPanel from '../components/AQPPanel';
 import { ColorSchemeToggle } from '../components/ColorSchemeToggle/ColorSchemeToggle';
@@ -130,7 +131,7 @@ export default function HomePage() {
 
         <Divider mt="sm" mr="xl" ml="xl" />
 
-        <Grid mr="xl" ml="xl">
+        <Grid mr="xl" ml="xl" mb="md">
           {/* Left side: Query Panel with Modified SQL Panel below */}
           <Grid.Col span={4}>
             <QueryPanel onSubmit={handleQuerySubmit} />
@@ -141,20 +142,10 @@ export default function HomePage() {
 
           {/* Right side: QEP and AQP Tabs */}
           <Grid.Col span={8}>
-            <Tabs defaultValue="qep">
-              <Tabs.List>
-                <Tabs.Tab value="qep">QEP Panel</Tabs.Tab>
-                <Tabs.Tab value="aqp">AQP Panel</Tabs.Tab>
-              </Tabs.List>
-
-              <Tabs.Panel value="qep" pt="sm">
-                <QEPPanel applyWhatIfChanges={applyWhatIfChanges} qepData={qepData} />
-              </Tabs.Panel>
-
-              <Tabs.Panel value="aqp" pt="sm">
-                <AQPPanel />
-              </Tabs.Panel>
-            </Tabs>
+            <Title order={4} mb="sm">
+              QEP Panel
+            </Title>
+            <QEPPanel applyWhatIfChanges={applyWhatIfChanges} qepData={qepData} />
           </Grid.Col>
         </Grid>
       </Stack>
