@@ -99,19 +99,60 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
 
   const renderCustomNode = ({ nodeDatum, hierarchyPointNode }: any) => {
     const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
+    const fillColor = isSelected ? '#CE3F44' : nodeDatum.isLeaf ? '#EAF6FB' : '#B0D4FF';
+    const textColor = isSelected ? '#CE3F44' : '#000';
+
+    // Adjust the table text to fit within a certain max line length
+    const maxLineLength = 20; // Maximum number of characters per line
+    const splitTableText = Array.isArray(nodeDatum.table)
+      ? nodeDatum.table
+      : nodeDatum.table.match(new RegExp(`.{1,${maxLineLength}}`, 'g')) || ['No tables'];
+
+    // Calculate height dynamically based on the number of lines in the table text
+    const baseHeight = 60; // Base height for the node without table text
+    const lineHeight = 18;
+    const totalHeight = baseHeight + splitTableText.length * lineHeight;
 
     return (
-      <g>
-        <circle
-          r={15}
-          fill={nodeDatum.isLeaf ? (isSelected ? 'red' : 'white') : isSelected ? 'red' : 'black'}
-          stroke={isSelected ? 'red' : 'black'}
+      <g onClick={() => handleNodeClick(hierarchyPointNode)}>
+        {/* Node rectangle with dynamic height */}
+        <rect
+          x="-75"
+          y={-totalHeight / 2}
+          width="150"
+          height={totalHeight}
+          rx="15"
+          fill={fillColor}
+          stroke={isSelected ? '#CE3F44' : '#000'}
           strokeWidth={isSelected ? 3 : 1}
-          onClick={() => handleNodeClick(hierarchyPointNode)}
         />
-        <text x={25} y={5} style={{ fontSize: 17, fill: isSelected ? 'red' : 'black' }}>
-          {nodeDatum.name}
+        {/* Node type */}
+        <text
+          x="0"
+          y={-totalHeight / 2 + 20}
+          style={{ fontSize: 20, textAnchor: 'middle', fill: textColor }}
+        >
+          {nodeDatum.type}
         </text>
+        {/* Cost */}
+        <text
+          x="0"
+          y={-totalHeight / 2 + 40}
+          style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
+        >
+          Cost: {nodeDatum.cost}
+        </text>
+        {/* Table text positioned dynamically based on total height */}
+        {splitTableText.map((line: string, index: number) => (
+          <text
+            key={index}
+            x="0"
+            y={-totalHeight / 2 + 60 + index * lineHeight}
+            style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
+          >
+            {index === 0 ? `Table: ${line}` : line}
+          </text>
+        ))}
       </g>
     );
   };
@@ -211,7 +252,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
             </Box>
           </Group>
         )}
-        <Box style={{ alignSelf: 'flex-end' }}>
+        <Box style={{ alignSelf: 'flex-end', marginLeft: 'auto' }}>
           <Button color="#CE3F44" onClick={generateAQP} style={{ width: '150px' }}>
             Generate AQP
           </Button>

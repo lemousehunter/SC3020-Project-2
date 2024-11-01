@@ -1,17 +1,21 @@
-// utils/convertToTree.ts
 export function convertNetworkXToTree(networkXData: any) {
   const nodeMap = new Map();
 
   networkXData.nodes.forEach((node: any) => {
-    const tableLabel = node.table ? ` (${node.table})` : ''; // Only add table if it exists
-    const label = `${node.type}${tableLabel}`; // Exclude cost from the label
+    // Define maximum line length for table text
+    const maxLineLength = 35;
+
+    // Split table text into multiple lines if it exceeds the maximum line length
+    const tableText = node.table || 'No tables';
+    const splitTableText = tableText.match(new RegExp(`.{1,${maxLineLength}}`, 'g')) || [];
 
     nodeMap.set(node.id, {
       id: node.id,
       type: node.type,
-      name: label,
-      children: [],
+      cost: node.cost || 'N/A',
+      table: splitTableText, // Store as an array of strings
       isLeaf: node.isLeaf,
+      children: [],
     });
   });
 

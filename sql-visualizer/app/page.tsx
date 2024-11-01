@@ -34,9 +34,16 @@ export default function HomePage() {
 
   const mockQEPNetworkXData = {
     nodes: [
-      { id: '1', type: 'Hash Join', table: null, cost: 200, isLeaf: false },
+      {
+        id: '1',
+        type: 'Hash Join',
+        table:
+          'orders, customerasfaheifashfkjadshfjkashfjksahfjkashfjkadshfjkadshfjkshfjkashfjkadshfjkadshfjkdshfjkshfkhfjkdh',
+        cost: 200,
+        isLeaf: false,
+      },
       { id: '2', type: 'Seq Scan', table: 'customer', cost: 100, isLeaf: true },
-      { id: '3', type: 'Hash', table: null, cost: 150, isLeaf: false },
+      { id: '3', type: 'Hash', table: 'orders', cost: 150, isLeaf: false },
       { id: '4', type: 'Seq Scan', table: 'orders', cost: 100, isLeaf: true },
     ],
     edges: [
