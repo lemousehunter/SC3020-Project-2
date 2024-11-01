@@ -7,7 +7,7 @@ from enum import Enum, auto
 from src.database.databaseManager import DatabaseManager
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_visualizer import QEPVisualizer
-from src.types.qep_types import JoinInfo, NodeType, ScanType, JoinType, QueryModification
+from src.types.qep_types import NodeType, ScanType, JoinType, QueryModification
 from src.settings.filepaths import VIZ_DIR
 
 
@@ -62,6 +62,8 @@ class QEPModifier:
             node_id: ID of the node to modify
             new_type: New type to assign to the node
         """
+        if not self.graph.has_node(node_id):
+            raise ValueError(f"Node with ID {node_id} not found in the QEP Tree")
         self.graph.nodes[node_id]['node_type'] = new_type
 
     def add_modification(self, modification: QueryModification):
@@ -90,10 +92,13 @@ class QEPModifier:
             #raise ValueError("No modifications have been added")
         else:
 
-            for modification in self.modifications:
+            """for modification in self.modifications:
                 matching_nodes = self._find_matching_nodes(modification)
                 for node_id in matching_nodes:
-                    self._update_node_type(node_id, modification.new_type)
+                    self._update_node_type(node_id, modification.new_type)"""
+
+            for modification in self.modifications:
+                self._update_node_type(modification.node_id, modification.new_type)
 
             # Clear costs after applying modifications
         self.clear_costs()
@@ -134,7 +139,8 @@ if __name__ == "__main__":
         node_type=NodeType.SCAN,
         original_type=ScanType.SEQ_SCAN.value,
         new_type=ScanType.BITMAP_HEAP_SCAN.value,
-        tables={'customer'}
+        tables={'customer'},
+        node_id="SOMESTRING"
     )
 
     # Change the nested loop join to a hash join
@@ -142,7 +148,8 @@ if __name__ == "__main__":
         node_type=NodeType.JOIN,
         original_type=JoinType.HASH_JOIN.value,
         new_type=JoinType.NESTED_LOOP.value,
-        tables={'customer', 'orders', "lineitem", "supplier"}
+        tables={'customer', 'orders', "lineitem", "supplier"},
+        node_id = "SOMESTRING"
     )
 
     # 4. Apply modifications

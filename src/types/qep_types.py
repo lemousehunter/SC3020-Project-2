@@ -3,15 +3,6 @@ from enum import Enum, auto
 from typing import Set
 
 
-@dataclass
-class JoinInfo:
-    """Contains information about a join operation"""
-    left_tables: Set[str]
-    right_tables: Set[str]
-    condition: str
-    join_type: str
-
-
 class NodeType(Enum):
     SCAN = auto()
     JOIN = auto()
@@ -37,6 +28,7 @@ class QueryModification:
     original_type: str  # Original scan or join type
     new_type: str  # New scan or join type
     tables: Set[str]  # Single table for scan, two tables for join
+    node_id: str      # unique node id to identify the node in the QEP
 
     def __post_init__(self):
         # Validate tables count based on node type
