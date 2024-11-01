@@ -37,14 +37,14 @@ export default function HomePage() {
       {
         id: '1',
         type: 'Hash Join',
+        node_type: 'JOIN', // Changed from isLeaf to node_type
         table:
           'orders, customerasfaheifashfkjadshfjkashfjksahfjkashfjkadshfjkadshfjkshfjkashfjkadshfjkadshfjkdshfjkshfkhfjkdh',
         cost: 200,
-        isLeaf: false,
       },
-      { id: '2', type: 'Seq Scan', table: 'customer', cost: 100, isLeaf: true },
-      { id: '3', type: 'Hash', table: 'orders', cost: 150, isLeaf: false },
-      { id: '4', type: 'Seq Scan', table: 'orders', cost: 100, isLeaf: true },
+      { id: '2', type: 'Seq Scan', node_type: 'SCAN', table: 'customer', cost: 100 },
+      { id: '3', type: 'Hash', node_type: 'JOIN', table: 'orders', cost: 150 },
+      { id: '4', type: 'Seq Scan', node_type: 'SCAN', table: 'orders', cost: 100 },
     ],
     edges: [
       { source: '1', target: '2' },

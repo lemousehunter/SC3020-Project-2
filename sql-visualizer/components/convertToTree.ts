@@ -2,19 +2,16 @@ export function convertNetworkXToTree(networkXData: any) {
   const nodeMap = new Map();
 
   networkXData.nodes.forEach((node: any) => {
-    // Define maximum line length for table text
     const maxLineLength = 35;
-
-    // Split table text into multiple lines if it exceeds the maximum line length
     const tableText = node.table || 'No tables';
     const splitTableText = tableText.match(new RegExp(`.{1,${maxLineLength}}`, 'g')) || [];
 
     nodeMap.set(node.id, {
       id: node.id,
       type: node.type,
+      node_type: node.node_type, // Use node_type instead of isLeaf
       cost: node.cost || 'N/A',
-      table: splitTableText, // Store as an array of strings
-      isLeaf: node.isLeaf,
+      table: splitTableText,
       children: [],
     });
   });
