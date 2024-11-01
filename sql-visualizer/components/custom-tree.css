@@ -1,0 +1,19 @@
+.node__root > circle {
+    fill: black;
+  }
+  
+  .node__branch > circle {
+    fill: black;
+  }
+  
+  .node__leaf > circle {
+    fill: white;
+  }
+  
+  /* Selected node styling */
+  .node__selected > circle {
+    fill: red; /* Red fill for selected node */
+    stroke: red;
+    stroke-width: 3px;
+  }
+  
