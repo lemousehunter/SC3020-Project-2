@@ -94,32 +94,6 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
       .join('\n');
 
     applyWhatIfChanges(modifiedSQL);
-
-    // Send modified tree data to backend
-    // try {
-    //   const response = await fetch('/api/aqp/generate', {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({ modifiedTree: modifiedTreeData }),
-    //   });
-
-    //   if (response.ok) {
-    //     setShowSuccessNotification(true);
-    //     setModifiedTreeData(null); // Clear modified tree after success
-    //     setPendingChanges([]);
-    //   } else {
-    //     throw new Error('Failed to send AQP data');
-    //   }
-    // } catch (error) {
-    //   console.error('Error sending AQP data:', error);
-    //   setShowErrorNotification(true);
-    // } finally {
-    //   // Hide notifications after 3 seconds
-    //   setTimeout(() => {
-    //     setShowErrorNotification(false);
-    //     setShowSuccessNotification(false);
-    //   }, 3000);
-    // }
     setShowSuccessNotification(true);
   };
 
@@ -162,7 +136,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         <Box
           style={{
             width: pendingChanges.length > 0 ? '50%' : '100%',
-            height: '350px',
+            height: '450px',
             padding: '10px',
           }}
         >
@@ -212,12 +186,9 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         )}
       </Box>
 
-      {selectedNode && (
-        <Box mt="md" mb="md">
-          <Text>
-            Modify Node: {selectedNode.type} (ID: {selectedNode.id})
-          </Text>
-          <Group mt="md" spacing="sm" align="flex-end">
+      <Box mt="md" style={{ display: 'flex', justifyContent: 'space-between' }}>
+        {selectedNode && (
+          <Group spacing="sm">
             {selectedNode.isLeaf ? (
               <Select
                 label="Change Scan Type"
@@ -235,19 +206,17 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
                 onChange={handleJoinChange}
               />
             )}
-            <Button onClick={confirmChange}>Confirm Change</Button>
+            <Box style={{ alignSelf: 'flex-end' }}>
+              <Button onClick={confirmChange}>Confirm Change</Button>
+            </Box>
           </Group>
+        )}
+        <Box style={{ alignSelf: 'flex-end' }}>
+          <Button color="#CE3F44" onClick={generateAQP} style={{ width: '150px' }}>
+            Generate AQP
+          </Button>
         </Box>
-      )}
-
-      <Button
-        mt="lg"
-        color="blue"
-        onClick={generateAQP}
-        style={{ width: '150px', alignSelf: 'flex-start' }}
-      >
-        Generate AQP
-      </Button>
+      </Box>
 
       {showErrorNotification && (
         <Notification

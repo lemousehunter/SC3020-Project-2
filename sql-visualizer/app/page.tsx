@@ -146,13 +146,12 @@ export default function HomePage() {
             ) : (
               <Box
                 style={{
-                  height: '98 %',
+                  height: '98%',
                   backgroundColor: '#2E2E2E',
                   borderRadius: '8px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-
                   marginTop: '16px',
                   color: '#555',
                 }}
