@@ -1,9 +1,6 @@
 import networkx as nx
 from typing import Dict, Any, Optional, List, Tuple, Set
 import uuid
-import matplotlib.pyplot as plt
-from collections import defaultdict
-
 from src.database.databaseManager import DatabaseManager
 from src.database.qep.qep_visualizer import QEPVisualizer
 from src.settings.filepaths import VIZ_DIR
