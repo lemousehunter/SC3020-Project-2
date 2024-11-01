@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { IconCheck, IconX } from '@tabler/icons-react';
+import { IconCheck, IconInfoCircle, IconX } from '@tabler/icons-react';
 import Tree from 'react-d3-tree';
 import {
+  Blockquote,
   Box,
   Button,
   Card,
@@ -30,19 +31,17 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
   const [translate, setTranslate] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Ref to get the container dimensions
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (qepData) {
       const treeData = convertNetworkXToTree(qepData);
       setQepTreeData(treeData);
-      setModifiedTreeData(JSON.parse(JSON.stringify(treeData))); // Initialize modifiedTreeData without costs
+      setModifiedTreeData(JSON.parse(JSON.stringify(treeData)));
     }
   }, [qepData]);
 
   useEffect(() => {
-    // Center the tree in the container when it first loads
     if (treeContainerRef.current) {
       const { clientWidth, clientHeight } = treeContainerRef.current;
       setTranslate({ x: clientWidth / 2.2, y: clientHeight / 5 });
@@ -79,7 +78,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         ...prevChanges,
         { id: selectedNode.id, newType: selectedNode.newType },
       ]);
-      setSelectedNode(null); // Clear selected node after confirming change
+      setSelectedNode(null);
     }
   };
 
@@ -110,25 +109,21 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   const renderCustomNode = ({ nodeDatum, hierarchyPointNode }: any) => {
     const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
 
-    // Node colors
-    const fillColor = nodeDatum.isLeaf ? '#EAF6FB' : '#B0D4FF'; // Keep fill color consistent
-    const strokeColor = isSelected ? '#FF4500' : '#000'; // Change stroke color when selected
-    const textColor = '#000'; // Keep text color consistent
+    const fillColor = nodeDatum.isLeaf ? '#EAF6FB' : '#B0D4FF';
+    const strokeColor = isSelected ? '#FF4500' : '#000';
+    const textColor = '#000';
 
-    // Adjust the table text to fit within a certain max line length
-    const maxLineLength = 20; // Maximum number of characters per line
+    const maxLineLength = 20;
     const splitTableText = Array.isArray(nodeDatum.table)
       ? nodeDatum.table
       : nodeDatum.table.match(new RegExp(`.{1,${maxLineLength}}`, 'g')) || ['No tables'];
 
-    // Calculate height dynamically based on the number of lines in the table text
-    const baseHeight = 60; // Base height for the node without table text
+    const baseHeight = 60;
     const lineHeight = 18;
     const totalHeight = baseHeight + splitTableText.length * lineHeight;
 
     return (
       <g onClick={() => handleNodeClick(hierarchyPointNode)}>
-        {/* Node rectangle with dynamic height and stroke color */}
         <rect
           x="-75"
           y={-totalHeight / 2}
@@ -137,9 +132,8 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
           rx="15"
           fill={fillColor}
           stroke={strokeColor}
-          strokeWidth={isSelected ? 3 : 1} // Thicker stroke for selected node
+          strokeWidth={isSelected ? 3 : 1}
         />
-        {/* Node type */}
         <text
           x="0"
           y={-totalHeight / 2 + 20}
@@ -147,7 +141,6 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         >
           {nodeDatum.type}
         </text>
-        {/* Cost */}
         <text
           x="0"
           y={-totalHeight / 2 + 40}
@@ -155,7 +148,6 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         >
           Cost: {nodeDatum.cost}
         </text>
-        {/* Table text positioned dynamically based on total height */}
         {splitTableText.map((line: string, index: number) => (
           <text
             key={index}
@@ -171,7 +163,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   };
 
   return (
-    <Card shadow="sm" padding="lg" mt="md" style={{ height: '98%' }}>
+    <Card shadow="sm" padding="lg" mt="md" style={{ height: '98%', position: 'relative' }}>
       <Title order={4}>QEP Panel</Title>
       <Text>Visualized Query Execution Plan (QEP): Drag the tree for better view</Text>
 
@@ -221,7 +213,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
             />
             <Box style={{ width: '50%', padding: '10px', height: '350px' }}>
               <Title order={5} style={{ color: 'black' }}>
-                Modified QEP
+                Preview of AQP
               </Title>
               {modifiedTreeData ? (
                 <Tree
@@ -267,7 +259,12 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
           </Group>
         )}
         <Box style={{ alignSelf: 'flex-end', marginLeft: 'auto' }}>
-          <Button color="#CE3F44" onClick={generateAQP} style={{ width: '150px' }}>
+          <Button
+            color="#CE3F44"
+            onClick={generateAQP}
+            style={{ width: '150px' }}
+            disabled={pendingChanges.length === 0}
+          >
             Generate AQP
           </Button>
         </Box>
@@ -303,6 +300,21 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         >
           The AQP was generated successfully.
         </Notification>
+      )}
+
+      {!selectedNode && pendingChanges.length === 0 && (
+        <Box
+          style={{
+            position: 'absolute',
+            bottom: '65px',
+            left: '20px',
+            width: '300px',
+          }}
+        >
+          <Blockquote color="red" style={{ fontSize: '14px', padding: '5px 10px' }}>
+            Click on a node to start modifying the tree.
+          </Blockquote>
+        </Box>
       )}
     </Card>
   );
