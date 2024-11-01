@@ -229,7 +229,7 @@ if __name__ == "__main__":
     #    """
     query = """
     select 
-    /*+ Leading( ( ( (l s) o) c) )  NestLoop( c o l s) HashJoin( l s ) HashJoin( l o ) BitmapScan(c) */
+    /*+ Leading( ( ( (o c) l) s) )  NestLoop( o c ) HashJoin( c o l s ) HashJoin( l o c ) BitmapScan(c) */
     * 
 from customer C, orders O, lineitem L, supplier S
 where C.c_custkey = O.o_custkey 
