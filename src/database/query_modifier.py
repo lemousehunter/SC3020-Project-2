@@ -1,5 +1,7 @@
 import re
-from typing import Optional
+from typing import Optional, List
+
+import networkx as nx
 
 
 class QueryModifier:
@@ -35,11 +37,11 @@ where C.c_custkey = O.o_custkey
   )
         """
 
-    qep_data = db_manager.get_qep(query)
+    qep_data: List = db_manager.get_qep(query)
 
     # 2. Parse the original plan
     parser = QEPParser()
-    original_graph = parser.parse(qep_data)
+    original_graph: nx.DiGraph = parser.parse(qep_data)
     QEPVisualizer(original_graph).visualize(VIZ_DIR / "original_qep.png")
 
     # 3. Create modifications
@@ -64,20 +66,18 @@ where C.c_custkey = O.o_custkey
     modifier.add_modification(scan_modification)
     modifier.add_modification(join_modification)
 
-    modified_graph = modifier.apply_modifications()
+    modified_graph: nx.DiGraph = modifier.apply_modifications()
     QEPVisualizer(modified_graph).visualize(VIZ_DIR / "modified_pre-explained_qep_tree.png")
 
+    # 5 Generate Hint
     hint = HintConstructor(modified_graph).generate_hints(query)
     print(hint)
 
-    # 5. Modify Query
+    # 6 Modify Query (pre-pend hint)
     modified_query = QueryModifier(
         query=query,
         hint=hint
     ).modify()
-
-
-    # 6. Print the modified query
     print(modified_query)
 
     # 7. Visualize the modified graph
