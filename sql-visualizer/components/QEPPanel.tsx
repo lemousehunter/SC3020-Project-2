@@ -143,7 +143,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   };
 
   return (
-    <Card shadow="sm" padding="lg" mt="md">
+    <Card shadow="sm" padding="lg" mt="md" style={{ height: '98%' }}>
       <Title order={4}>QEP Panel</Title>
       <Text>Visualized Query Execution Plan (QEP):</Text>
 

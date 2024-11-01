@@ -12,7 +12,7 @@ import {
   rem,
   Select,
   Stack,
-  Tabs,
+  Text,
   Title,
 } from '@mantine/core';
 import AQPPanel from '../components/AQPPanel';
@@ -136,16 +136,30 @@ export default function HomePage() {
           <Grid.Col span={4}>
             <QueryPanel onSubmit={handleQuerySubmit} />
             <Divider mt="md" />
-            <ModifiedSQLPanel modifiedSQL={modifiedSQL} />{' '}
-            {/* Modified SQL Panel under Query Panel */}
+            <ModifiedSQLPanel modifiedSQL={modifiedSQL} />
           </Grid.Col>
 
-          {/* Right side: QEP and AQP Tabs */}
-          <Grid.Col span={8}>
-            <Title order={4} mb="sm">
-              QEP Panel
-            </Title>
-            <QEPPanel applyWhatIfChanges={applyWhatIfChanges} qepData={qepData} />
+          {/* Right side: QEP Panel or Message */}
+          <Grid.Col span={8} mt="lg">
+            {selectedDatabase && qepData ? (
+              <QEPPanel applyWhatIfChanges={applyWhatIfChanges} qepData={qepData} />
+            ) : (
+              <Box
+                style={{
+                  height: '98 %',
+                  backgroundColor: '#2E2E2E',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+
+                  marginTop: '16px',
+                  color: '#555',
+                }}
+              >
+                <Text>Please select a database and enter an SQL query to view the QEP.</Text>
+              </Box>
+            )}
           </Grid.Col>
         </Grid>
       </Stack>
