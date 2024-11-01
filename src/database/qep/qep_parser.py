@@ -57,7 +57,7 @@ class QEPParser:
         """
         Process a join condition to extract and resolve table names and conditions.
         Returns: (set of table names, list of resolved conditions)
-        Example: "(c.c_custkey = o.o_custkey)" -> ({"customer", "orders"}, ["customer.c_custkey = orders.o_custkey"])
+        eg.: "(c.c_custkey = o.o_custkey)" -> ({"customer", "orders"}, ["customer.c_custkey = orders.o_custkey"])
         """
         tables = set()
         resolved_conditions = []
