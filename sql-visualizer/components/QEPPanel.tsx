@@ -29,7 +29,10 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   const [pendingChanges, setPendingChanges] = useState<{ id: string; newType: string }[]>([]);
   const [showErrorNotification, setShowErrorNotification] = useState(false);
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
-  const [translate, setTranslate] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [qepTranslate, setQepTranslate] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [aqpTranslate, setAqpTranslate] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [qepZoom, setQepZoom] = useState(0.7); // Initial zoom level for QEP
+  const [aqpZoom, setAqpZoom] = useState(0.7); // Initial zoom level for AQP
 
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
@@ -44,9 +47,15 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   useEffect(() => {
     if (treeContainerRef.current) {
       const { clientWidth, clientHeight } = treeContainerRef.current;
-      setTranslate({ x: clientWidth / 2.2, y: clientHeight / 5 });
+
+      if (pendingChanges.length > 0) {
+        setQepTranslate({ x: clientWidth / 5, y: clientHeight / 5 });
+        setAqpTranslate({ x: clientWidth / 5, y: clientHeight / 5 });
+      } else {
+        setQepTranslate({ x: clientWidth / 2.2, y: clientHeight / 5 });
+      }
     }
-  }, [qepTreeData]);
+  }, [qepTreeData, pendingChanges]);
 
   const handleNodeClick = (node: any) => {
     const nodeId = node.data.id || 'Unknown ID';
@@ -106,9 +115,8 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
     setShowSuccessNotification(true);
   };
 
-  const renderCustomNode = ({ nodeDatum, hierarchyPointNode }: any) => {
+  const renderQEPNode = ({ nodeDatum, hierarchyPointNode }: any) => {
     const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
-
     const fillColor = nodeDatum.isLeaf ? '#EAF6FB' : '#B0D4FF';
     const strokeColor = isSelected ? '#FF4500' : '#000';
     const textColor = '#000';
@@ -137,7 +145,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         <text
           x="0"
           y={-totalHeight / 2 + 20}
-          style={{ fontSize: 20, textAnchor: 'middle', fill: textColor }}
+          style={{ fontSize: 18, textAnchor: 'middle', fill: textColor }}
         >
           {nodeDatum.type}
         </text>
@@ -153,6 +161,54 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
             key={index}
             x="0"
             y={-totalHeight / 2 + 60 + index * lineHeight}
+            style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
+          >
+            {index === 0 ? `Table: ${line}` : line}
+          </text>
+        ))}
+      </g>
+    );
+  };
+
+  const renderPreviewNode = ({ nodeDatum, hierarchyPointNode }: any) => {
+    const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
+    const fillColor = nodeDatum.isLeaf ? '#EAF6FB' : '#B0D4FF';
+    const strokeColor = isSelected ? '#FF4500' : '#000';
+    const textColor = '#000';
+
+    const maxLineLength = 20;
+    const splitTableText = Array.isArray(nodeDatum.table)
+      ? nodeDatum.table
+      : nodeDatum.table.match(new RegExp(`.{1,${maxLineLength}}`, 'g')) || ['No tables'];
+
+    const baseHeight = 60;
+    const lineHeight = 18;
+    const totalHeight = baseHeight + splitTableText.length * lineHeight;
+
+    return (
+      <g onClick={() => handleNodeClick(hierarchyPointNode)}>
+        <rect
+          x="-75"
+          y={-totalHeight / 2}
+          width="150"
+          height={totalHeight}
+          rx="15"
+          fill={fillColor}
+          stroke={strokeColor}
+          strokeWidth={isSelected ? 3 : 1}
+        />
+        <text
+          x="0"
+          y={-totalHeight / 2 + 20}
+          style={{ fontSize: 18, textAnchor: 'middle', fill: textColor }}
+        >
+          {nodeDatum.type}
+        </text>
+        {splitTableText.map((line: string, index: number) => (
+          <text
+            key={index}
+            x="0"
+            y={-totalHeight / 2 + 50 + index * lineHeight}
             style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
           >
             {index === 0 ? `Table: ${line}` : line}
@@ -195,9 +251,10 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
               data={qepTreeData}
               orientation="vertical"
               pathFunc="straight"
-              translate={translate}
+              translate={qepTranslate}
+              zoom={qepZoom}
               separation={{ siblings: 2, nonSiblings: 2.5 }}
-              renderCustomNodeElement={renderCustomNode}
+              renderCustomNodeElement={renderQEPNode}
               collapsible={false}
             />
           ) : (
@@ -220,9 +277,10 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
                   data={modifiedTreeData}
                   orientation="vertical"
                   pathFunc="straight"
-                  translate={translate}
+                  translate={aqpTranslate}
+                  zoom={aqpZoom}
                   separation={{ siblings: 2, nonSiblings: 2.5 }}
-                  renderCustomNodeElement={renderCustomNode}
+                  renderCustomNodeElement={renderPreviewNode}
                   collapsible={false}
                 />
               ) : (
