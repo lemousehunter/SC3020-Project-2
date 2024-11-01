@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Set, Optional
+from typing import Set
 
 
 class NodeType(Enum):
@@ -23,7 +23,7 @@ class JoinType(Enum):
 
 
 @dataclass
-class QEPModification:
+class QueryModification:
     node_type: NodeType
     original_type: str  # Original scan or join type
     new_type: str  # New scan or join type
@@ -36,24 +36,3 @@ class QEPModification:
             raise ValueError("Scan modifications must specify exactly one table")
         if self.node_type == NodeType.JOIN and len(self.tables) < 2:
             raise ValueError("Join modifications must specify 2 or more tables")
-
-
-@dataclass
-class SwapNodeIdentifier:
-    """Identifies a node either by ID or by type and tables."""
-    node_id: Optional[str] = None  # Direct node ID if available
-    node_type: Optional[str] = None  # Node type (e.g., "Hash Join", "Merge Join")
-    tables: Optional[Set[str]] = None  # Set of tables involved in the node
-
-    def __post_init__(self):
-        if self.node_id is None and (self.node_type is None or self.tables is None):
-            raise ValueError("Must provide either node_id or both node_type and tables")
-        if self.tables is not None:
-            self.tables = set(self.tables)  # Ensure tables is a set
-
-
-@dataclass
-class SwapModification:
-    """Represents a modification to swap two nodes in the QEP."""
-    node1: SwapNodeIdentifier
-    node2: SwapNodeIdentifier
