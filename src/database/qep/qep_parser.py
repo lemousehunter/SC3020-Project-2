@@ -87,7 +87,7 @@ class QEPParser:
 
         return tables, resolved_conditions
 
-    def _extract_join_info(self, node_data: Dict[str, Any]) -> Tuple[Set[str], List[str]]:
+    def _extract_join_info(self, node_data: Dict[str, Any]) -> tuple[set[set], list[str]]:
         """Extract join tables and conditions from a node."""
         all_tables = set()
         all_conditions = []
