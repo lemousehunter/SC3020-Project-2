@@ -36,6 +36,9 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   const [qepZoom, setQepZoom] = useState(0.8); // Initial zoom level for QEP
   const [aqpZoom, setAqpZoom] = useState(0.8); // Initial zoom level for AQP
   const [modifiedSQL, setModifiedSQL] = useState<string>('');
+  const [totalCostOriginalQEP, setTotalCostOriginalQEP] = useState<number | null>(null);
+
+  const [totalCostAQP, setTotalCostAQP] = useState<number | null>(null);
 
   const mockAQPResponse = {
     modifiedSQL: 'SELECT * FROM orders JOIN customers ON ...', // Modified SQL
@@ -170,6 +173,9 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
     };
 
     setModifiedSQL(mockAQPResponse.modifiedSQL);
+    setTotalCostOriginalQEP(mockAQPResponse.totalCostOriginalQEP);
+
+    setTotalCostAQP(mockAQPResponse.totalCostAQP);
 
     applyWhatIfChanges(mockAQPResponse.modifiedSQL); // Use callback to pass modified SQL back to HomePage
 
@@ -334,16 +340,23 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
             Original QEP
           </Title>
           {qepTreeData ? (
-            <Tree
-              data={qepTreeData}
-              orientation="vertical"
-              pathFunc="straight"
-              translate={qepTranslate}
-              zoom={qepZoom}
-              separation={{ siblings: 2, nonSiblings: 2.5 }}
-              renderCustomNodeElement={renderQEPNode}
-              collapsible={false}
-            />
+            <>
+              <Tree
+                data={qepTreeData}
+                orientation="vertical"
+                pathFunc="straight"
+                translate={qepTranslate}
+                zoom={qepZoom}
+                separation={{ siblings: 2, nonSiblings: 2.5 }}
+                renderCustomNodeElement={renderQEPNode}
+                collapsible={false}
+              />
+              {totalCostOriginalQEP !== null && (
+                <Text mt="sm" align="center" style={{ fontWeight: 'bold' }}>
+                  Total Cost: {totalCostOriginalQEP}
+                </Text>
+              )}
+            </>
           ) : (
             <Text style={{ color: 'grey' }}>Loading original QEP...</Text>
           )}
@@ -360,16 +373,23 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
                 Preview of AQP
               </Title>
               {modifiedTreeData ? (
-                <Tree
-                  data={modifiedTreeData}
-                  orientation="vertical"
-                  pathFunc="straight"
-                  translate={aqpTranslate}
-                  zoom={aqpZoom}
-                  separation={{ siblings: 2, nonSiblings: 2.5 }}
-                  renderCustomNodeElement={renderPreviewNode}
-                  collapsible={false}
-                />
+                <>
+                  <Tree
+                    data={modifiedTreeData}
+                    orientation="vertical"
+                    pathFunc="straight"
+                    translate={aqpTranslate}
+                    zoom={aqpZoom}
+                    separation={{ siblings: 2, nonSiblings: 2.5 }}
+                    renderCustomNodeElement={renderQEPNode}
+                    collapsible={false}
+                  />
+                  {totalCostAQP !== null && (
+                    <Text mt="sm" align="center" style={{ fontWeight: 'bold' }}>
+                      Total Cost: {totalCostAQP}
+                    </Text>
+                  )}
+                </>
               ) : (
                 <Text style={{ color: 'grey' }}>Loading modified QEP...</Text>
               )}
@@ -404,7 +424,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
           </Group>
         )}
         {/* Generate AQP Button */}
-        <Box style={{ alignSelf: 'flex-end', marginLeft: 'auto' }}>
+        <Box style={{ alignSelf: 'flex-end', marginLeft: 'auto', marginTop: '30px' }}>
           <Button
             color="#CE3F44"
             onClick={generateAQP}
