@@ -42,5 +42,5 @@ class QueryModification:
         # Validate tables count based on node type
         if self.node_type == NodeType.SCAN and len(self.tables) != 1:
             raise ValueError("Scan modifications must specify exactly one table")
-        if self.node_type == NodeType.JOIN and len(self.tables) != 2:
-            raise ValueError("Join modifications must specify exactly two tables")
+        if self.node_type == NodeType.JOIN and len(self.tables) < 2:
+            raise ValueError("Join modifications must specify 2 or more tables")

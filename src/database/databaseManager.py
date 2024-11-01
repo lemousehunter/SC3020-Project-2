@@ -36,7 +36,8 @@ class DatabaseManager:
         print("========== TO EXECUTE ==========\n", to_execute)
         cursor.execute(to_execute)
         result = cursor.fetchall()
-        result = result
+        print("========= Result ========= ")
+        print(result)
         return result
 
 

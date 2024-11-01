@@ -30,6 +30,32 @@ class QEPParser:
         """
         return self.alias_map.get(identifier.lower(), identifier)
 
+    def _collect_descendant_tables(self, node_id: str, visited: Set[str] = None) -> Set[str]:
+        """
+        Recursively collect all tables from a node's descendants.
+
+        Args:
+            node_id: ID of the current node
+            visited: Set of already visited nodes to prevent cycles
+
+        Returns:
+            Set of table names from all descendants
+        """
+        if visited is None:
+            visited = set()
+
+        if node_id in visited:
+            return set()
+
+        visited.add(node_id)
+        tables = set(self.graph.nodes[node_id].get('tables', []))
+
+        # Recursively collect tables from all descendants
+        for child in self.graph.neighbors(node_id):
+            tables.update(self._collect_descendant_tables(child, visited))
+
+        return tables
+
     def _process_join_condition(self, condition: str) -> Tuple[set, List[str]]:
         """
         Process a join condition to extract and resolve table names and conditions.
@@ -106,52 +132,6 @@ class QEPParser:
 
         return tables, conditions
 
-    def _get_child_tables(self, child_nodes: List[str]) -> Set[str]:
-        """Collect all tables from child nodes."""
-        tables = set()
-        for child_id in child_nodes:
-            child_tables = self.graph.nodes[child_id].get('tables', set())
-            tables.update(child_tables)
-        return tables
-
-    def _find_join_tables(self, node_data: Dict[str, Any], child_nodes: List[str]) -> Set[str]:
-        """
-        Find the two tables being joined at this node by looking at join conditions
-        and immediate child nodes.
-        """
-        tables = set()
-
-        # First check if we can determine tables from join conditions
-        if 'Hash Cond' in node_data:
-            tables_from_cond, _ = self._process_join_condition(node_data['Hash Cond'])
-            tables.update(tables_from_cond)
-        elif 'Merge Cond' in node_data:
-            tables_from_cond, _ = self._process_join_condition(node_data['Merge Cond'])
-            tables.update(tables_from_cond)
-        elif 'Join Filter' in node_data:
-            tables_from_cond, _ = self._process_join_condition(node_data['Join Filter'])
-            tables.update(tables_from_cond)
-
-        # If we couldn't get tables from conditions, look at immediate children
-        if not tables and len(child_nodes) == 2:
-            for child_id in child_nodes:
-                child_data = self.graph.nodes[child_id]
-                child_tables = child_data.get('tables', set())
-                if len(child_tables) == 1:  # Only take leaf tables
-                    tables.update(child_tables)
-                elif len(child_tables) == 0:
-                    # If child has no tables, recursively look at its children
-                    grandchild_nodes = list(self.graph.neighbors(child_id))
-                    if grandchild_nodes:
-                        for grandchild_id in grandchild_nodes:
-                            grandchild_data = self.graph.nodes[grandchild_id]
-                            grandchild_tables = grandchild_data.get('tables', set())
-                            if len(grandchild_tables) == 1:
-                                tables.update(grandchild_tables)
-                                break  # Only take the first leaf table found
-
-        return tables
-
     def _parse_node(self, node_data: Dict[str, Any], parent_id: Optional[str] = None, is_root: bool = False) -> str:
         """Parse a single node and its children."""
         node_id = str(uuid.uuid4())
@@ -169,11 +149,15 @@ class QEPParser:
         node_type = node_data.get('Node Type', '')
 
         if 'Join' in node_type or node_type == 'Nested Loop':
-            # For join nodes, find the two tables being joined
-            tables = self._find_join_tables(node_data, child_nodes)
-            # Extract join conditions
+            # First get the immediate tables and conditions from this node
             node_tables, node_conditions = self._extract_join_info(node_data)
+            tables.update(node_tables)
             conditions.extend(node_conditions)
+
+            # Then collect all tables from descendants for join nodes
+            for child_id in child_nodes:
+                descendant_tables = self._collect_descendant_tables(child_id)
+                tables.update(descendant_tables)
         else:
             # For non-join nodes, extract tables and conditions normally
             node_tables, node_conditions = self._extract_tables(node_data)
@@ -243,9 +227,30 @@ if __name__ == "__main__":
     db_manager = DatabaseManager('TPC-H')
     #res = db_manager.get_qep("select * from customer C, orders O where C.c_custkey = O.o_custkey")
     #res = db_manager.get_qep("select * from customer C, orders O where C.c_custkey = O.o_custkey")
+    #query = """
+    #    select * from customer C, orders O where C.c_custkey = O.o_custkey;
+    #    """
     query = """
-        select * from customer C, orders O where C.c_custkey = O.o_custkey;
-        """
+    select 
+    /*+ Leading( ( ( (l s) o) c) )  NestLoop( c o l s) HashJoin( l s ) HashJoin( l o ) BitmapScan(c) */
+    * 
+from customer C, orders O, lineitem L, supplier S
+where C.c_custkey = O.o_custkey 
+  and O.o_orderkey = L.l_orderkey
+  and L.l_suppkey = S.s_suppkey
+  and L.l_quantity > (
+    select avg(L2.l_quantity) 
+    from lineitem L2 
+    where L2.l_suppkey = S.s_suppkey
+  )
+    """
+    #query = """
+    #select
+    #/*+ Leading( ( ( (l s) o) c) )  NestLoop( c o l s) HashJoin( l s ) HashJoin( l o ) BitmapScan(c) */
+    #* from customer c
+    #join orders o on (c.c_custkey = o.o_custkey)
+    #join lineitem l on (o.o_orderkey = l.l_orderkey)
+    #join supplier s on (l.l_suppkey = s.s_suppkey);"""
     res = db_manager.get_qep(query)
 
     q = QEPParser()

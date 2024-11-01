@@ -11,7 +11,7 @@ from src.types.qep_types import JoinInfo, NodeType, ScanType, JoinType, QueryMod
 from src.settings.filepaths import VIZ_DIR
 
 
-class QueryModifier:
+class QEPModifier:
     def __init__(self, graph: nx.DiGraph):
         """
         Initialize the QueryModifier with a query execution plan graph.
@@ -46,6 +46,7 @@ class QueryModifier:
                     matching_nodes.append(node_id)
 
             elif modification.node_type == NodeType.JOIN:
+                #print("mod node type:", modification.node_type)
                 # For join nodes, check if it involves the specified tables
                 if (node_type == modification.original_type and
                         node_tables == modification.tables):
@@ -141,11 +142,11 @@ if __name__ == "__main__":
         node_type=NodeType.JOIN,
         original_type=JoinType.HASH_JOIN.value,
         new_type=JoinType.NESTED_LOOP.value,
-        tables={'customer', 'orders'}
+        tables={'customer', 'orders', "lineitem", "supplier"}
     )
 
     # 4. Apply modifications
-    modifier = QueryModifier(original_graph)
+    modifier = QEPModifier(original_graph)
     modifier.add_modification(scan_modification)
     modifier.add_modification(join_modification)
 
