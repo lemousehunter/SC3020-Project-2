@@ -17,6 +17,8 @@ import { convertNetworkXToTree } from './convertToTree';
 
 import './custom-tree.css';
 
+import { convertAQPToTree } from './convertAQPToTree';
+
 interface QEPPanelProps {
   applyWhatIfChanges: (newSQL: string) => void;
   qepData: any | null;
@@ -37,6 +39,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   const [aqpZoom, setAqpZoom] = useState(0.8); // Initial zoom level for AQP
   const [modifiedSQL, setModifiedSQL] = useState<string>('');
   const [totalCostOriginalQEP, setTotalCostOriginalQEP] = useState<number | null>(null);
+  const [generatedAQPData, setGeneratedAQPData] = useState<any | null>(null);
 
   const [totalCostAQP, setTotalCostAQP] = useState<number | null>(null);
 
@@ -84,7 +87,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
     if (treeContainerRef.current) {
       const { clientWidth, clientHeight } = treeContainerRef.current;
 
-      if (pendingChanges.length > 0) {
+      if (pendingChanges.length > 0 || generatedAQPData) {
         setQepTranslate({ x: clientWidth / 5, y: clientHeight / 5 });
         setAqpTranslate({ x: clientWidth / 5, y: clientHeight / 5 });
       } else {
@@ -177,8 +180,13 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
 
     setTotalCostAQP(mockAQPResponse.totalCostAQP);
 
+    const aqpTreeData = convertAQPToTree(mockAQPResponse.aqpData);
+
+    setGeneratedAQPData(aqpTreeData); // Set the new AQP tree data to display
+
     applyWhatIfChanges(mockAQPResponse.modifiedSQL); // Use callback to pass modified SQL back to HomePage
 
+    setPendingChanges([]);
     setShowSuccessNotification(true);
 
     // try {
@@ -331,7 +339,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
       >
         <Box
           style={{
-            width: pendingChanges.length > 0 ? '50%' : '100%',
+            width: pendingChanges.length > 0 || generatedAQPData ? '50%' : '100%',
             height: '450px',
             padding: '10px',
           }}
@@ -362,7 +370,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
           )}
         </Box>
 
-        {pendingChanges.length > 0 && (
+        {(pendingChanges.length > 0 || generatedAQPData) && (
           <>
             <Divider
               orientation="vertical"
@@ -370,18 +378,36 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
             />
             <Box style={{ width: '50%', padding: '10px', height: '450px' }}>
               <Title order={5} style={{ color: 'black' }}>
-                Preview of AQP
+                {generatedAQPData ? 'Generated AQP' : 'Preview of AQP'}
               </Title>
-              {modifiedTreeData ? (
+              {generatedAQPData ? (
                 <>
                   <Tree
-                    data={modifiedTreeData}
+                    data={generatedAQPData} // Use the generated AQP data
                     orientation="vertical"
                     pathFunc="straight"
                     translate={aqpTranslate}
                     zoom={aqpZoom}
                     separation={{ siblings: 2, nonSiblings: 2.5 }}
-                    renderCustomNodeElement={renderQEPNode}
+                    renderCustomNodeElement={renderQEPNode} // Assuming renderQEPNode can handle generated AQP nodes
+                    collapsible={false}
+                  />
+                  {totalCostAQP !== null && (
+                    <Text mt="sm" align="center" style={{ fontWeight: 'bold' }}>
+                      Total Cost: {totalCostAQP}
+                    </Text>
+                  )}
+                </>
+              ) : modifiedTreeData ? (
+                <>
+                  <Tree
+                    data={modifiedTreeData} // Use the modified preview data
+                    orientation="vertical"
+                    pathFunc="straight"
+                    translate={aqpTranslate}
+                    zoom={aqpZoom}
+                    separation={{ siblings: 2, nonSiblings: 2.5 }}
+                    renderCustomNodeElement={renderPreviewNode}
                     collapsible={false}
                   />
                   {totalCostAQP !== null && (
@@ -424,7 +450,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
           </Group>
         )}
         {/* Generate AQP Button */}
-        <Box style={{ alignSelf: 'flex-end', marginLeft: 'auto', marginTop: '30px' }}>
+        <Box style={{ alignSelf: 'flex-end', marginLeft: 'auto', marginTop: '25px' }}>
           <Button
             color="#CE3F44"
             onClick={generateAQP}
@@ -468,7 +494,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         </Notification>
       )}
 
-      {!selectedNode && pendingChanges.length === 0 && (
+      {!selectedNode && pendingChanges.length === 0 && !generatedAQPData && (
         <Box
           style={{
             position: 'absolute',
