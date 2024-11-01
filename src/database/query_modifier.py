@@ -50,7 +50,8 @@ where C.c_custkey = O.o_custkey
         node_type=NodeType.SCAN,
         original_type=ScanType.SEQ_SCAN.value,
         new_type=ScanType.BITMAP_HEAP_SCAN.value,
-        tables={'customer'}
+        tables={'customer'},
+        node_id="SOMESTRING"
     )
 
     # Change the nested loop join to a hash join
@@ -58,7 +59,8 @@ where C.c_custkey = O.o_custkey
         node_type=NodeType.JOIN,
         original_type=JoinType.HASH_JOIN.value,
         new_type=JoinType.NESTED_LOOP.value,
-        tables={'customer', 'orders', "lineitem", "supplier"}
+        tables={'customer', 'orders', "lineitem", "supplier"},
+        node_id="SOMESTRING"
     )
 
     # 4. Apply modifications
@@ -85,7 +87,7 @@ where C.c_custkey = O.o_custkey
         ]
     }
 
-    modified_graph: nx.DiGraph = modifier.apply_modifications()
+    modified_graph: nx.DiGraph = modifier.apply_modifications(False)
     QEPVisualizer(modified_graph).visualize(VIZ_DIR / "modified_pre-explained_qep_tree.png")
 
     # 5 Generate Hint
