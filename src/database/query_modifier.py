@@ -66,6 +66,25 @@ where C.c_custkey = O.o_custkey
     modifier.add_modification(scan_modification)
     modifier.add_modification(join_modification)
 
+    example_modification_request = {
+        'modifications': [
+            {
+                'node_type': 'SCAN',
+                'original_type': 'Seq Scan',
+                'new_type': 'Bitmap Heap Scan',
+                'tables': ['customer'],
+                'node_id': 1
+            },
+            {
+                'node_type': 'JOIN',
+                'original_type': 'Hash Join',
+                'new_type': 'Nested Loop',
+                'tables': ['customer', 'orders', 'lineitem', 'supplier']
+                'node_id': 2
+            }
+        ]
+    }
+
     modified_graph: nx.DiGraph = modifier.apply_modifications()
     QEPVisualizer(modified_graph).visualize(VIZ_DIR / "modified_pre-explained_qep_tree.png")
 
