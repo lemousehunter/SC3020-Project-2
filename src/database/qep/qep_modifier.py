@@ -1,9 +1,5 @@
-import uuid
-from dataclasses import dataclass
-from typing import Set, Dict, List, Optional
+from typing import List
 import networkx as nx
-from enum import Enum, auto
-
 from src.database.databaseManager import DatabaseManager
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_visualizer import QEPVisualizer
