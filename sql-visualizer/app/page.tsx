@@ -29,9 +29,8 @@ export default function HomePage() {
   const [notification, setNotification] = useState<{ message: string; show: boolean }>({
     message: '',
     show: false,
-  }); // Notification state
+  });
 
-  // Mock QEP Data for demonstration
   const mockQEPNetworkXData = {
     nodes: [
       { id: '1', type: 'Hash Join', table: null, cost: 200, isLeaf: false },
@@ -46,7 +45,6 @@ export default function HomePage() {
     ],
   };
 
-  // Fetch available databases on component mount
   useEffect(() => {
     fetch('/api/database/available')
       .then((response) => response.json())
@@ -54,13 +52,11 @@ export default function HomePage() {
       .catch((error) => console.error('Error fetching databases:', error));
   }, []);
 
-  // Handle database selection
   const handleDatabaseSelect = (value: string | null) => {
     setSelectedDatabase(value);
-    setNotification((prev) => ({ ...prev, show: false })); // Hide notification if a database is selected
+    setNotification((prev) => ({ ...prev, show: false }));
   };
 
-  // Handle query submission
   const handleQuerySubmit = (query: string) => {
     if (!selectedDatabase) {
       setNotification({
@@ -75,24 +71,6 @@ export default function HomePage() {
       return;
     }
 
-    // // Send query to backend with the selected database in the URL
-    // fetch(`/api/query/execute?database=${selectedDatabase}`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ query }),
-    // })
-    //   .then((response) => {
-    //     if (!response.ok) {
-    //       throw new Error('Failed to fetch QEP data');
-    //     }
-    //     return response.json();
-    //   })
-    //   .then((data) => {
-    //     setQepData(data.qepData); // Update with backend response
-    //   })
-    //   .catch((error) => {
-    //     console.error('Error fetching QEP data:', error);
-    //   });
     setQepData(mockQEPNetworkXData);
   };
 
@@ -111,10 +89,8 @@ export default function HomePage() {
       }}
     >
       <Stack spacing="md">
-        {/* Welcome component as an introduction at the top */}
         <Welcome />
 
-        {/* Floating Notification for missing database or query */}
         {notification.show && (
           <Notification
             icon={<IconX style={{ width: rem(20), height: rem(20) }} />}
@@ -155,26 +131,24 @@ export default function HomePage() {
         <Divider mt="sm" mr="xl" ml="xl" />
 
         <Grid mr="xl" ml="xl">
-          {/* Left side: Query Panel */}
+          {/* Left side: Query Panel with Modified SQL Panel below */}
           <Grid.Col span={4}>
-            <QueryPanel onSubmit={handleQuerySubmit} /> {/* Pass handleQuerySubmit to QueryPanel */}
+            <QueryPanel onSubmit={handleQuerySubmit} />
+            <Divider mt="md" />
+            <ModifiedSQLPanel modifiedSQL={modifiedSQL} />{' '}
+            {/* Modified SQL Panel under Query Panel */}
           </Grid.Col>
 
-          {/* Right side */}
+          {/* Right side: QEP and AQP Tabs */}
           <Grid.Col span={8}>
             <Tabs defaultValue="qep">
               <Tabs.List>
                 <Tabs.Tab value="qep">QEP Panel</Tabs.Tab>
-                <Tabs.Tab value="whatIf">Modified SQL Panel</Tabs.Tab>
                 <Tabs.Tab value="aqp">AQP Panel</Tabs.Tab>
               </Tabs.List>
 
               <Tabs.Panel value="qep" pt="sm">
                 <QEPPanel applyWhatIfChanges={applyWhatIfChanges} qepData={qepData} />
-              </Tabs.Panel>
-
-              <Tabs.Panel value="whatIf" pt="sm">
-                <ModifiedSQLPanel modifiedSQL={modifiedSQL} />
               </Tabs.Panel>
 
               <Tabs.Panel value="aqp" pt="sm">

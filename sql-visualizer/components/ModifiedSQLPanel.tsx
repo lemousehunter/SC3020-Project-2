@@ -1,7 +1,7 @@
 // components/ModifiedSQLPanel.tsx
 'use client';
 
-import { Box, Code, Text, Title } from '@mantine/core';
+import { Box, Code, Text, Textarea, Title } from '@mantine/core';
 
 interface ModifiedSQLPanelProps {
   modifiedSQL: string;
@@ -10,10 +10,18 @@ interface ModifiedSQLPanelProps {
 export default function ModifiedSQLPanel({ modifiedSQL }: ModifiedSQLPanelProps) {
   return (
     <Box>
-      <Title order={4}>Modified SQL Query</Title>
-      <Text mt="sm">Here is the SQL query generated based on your modifications:</Text>
+      <Title order={4} mt="md">
+        Modified SQL Query
+      </Title>
       <Box mt="lg">
-        <Code block>{modifiedSQL}</Code>
+        <Textarea
+          value={modifiedSQL}
+          readOnly
+          minRows={12}
+          maxRows={150}
+          autosize
+          style={{ width: '100%' }}
+        />
       </Box>
     </Box>
   );
