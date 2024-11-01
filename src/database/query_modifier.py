@@ -79,7 +79,7 @@ where C.c_custkey = O.o_custkey
                 'node_type': 'JOIN',
                 'original_type': 'Hash Join',
                 'new_type': 'Nested Loop',
-                'tables': ['customer', 'orders', 'lineitem', 'supplier']
+                'tables': ['customer', 'orders', 'lineitem', 'supplier'],
                 'node_id': 2
             }
         ]
