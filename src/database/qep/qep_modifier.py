@@ -76,7 +76,7 @@ class QEPModifier:
         for node_id in self.graph.nodes():
             self.graph.nodes[node_id]['cost'] = -1
 
-    def apply_modifications(self) -> nx.DiGraph:
+    def apply_modifications(self, match_node_by_id: bool = True) -> nx.DiGraph:
         """
         Apply all stored modifications to the query plan graph.
 
@@ -87,14 +87,14 @@ class QEPModifier:
             pass
             #raise ValueError("No modifications have been added")
         else:
-
-            """for modification in self.modifications:
-                matching_nodes = self._find_matching_nodes(modification)
-                for node_id in matching_nodes:
-                    self._update_node_type(node_id, modification.new_type)"""
-
-            for modification in self.modifications:
-                self._update_node_type(modification.node_id, modification.new_type)
+            if match_node_by_id:
+                for modification in self.modifications:
+                    self._update_node_type(modification.node_id, modification.new_type)
+            else:
+                for modification in self.modifications:
+                    matching_nodes = self._find_matching_nodes(modification)
+                    for node_id in matching_nodes:
+                        self._update_node_type(node_id, modification.new_type)
 
             # Clear costs after applying modifications
         self.clear_costs()
@@ -153,7 +153,7 @@ if __name__ == "__main__":
     modifier.add_modification(scan_modification)
     modifier.add_modification(join_modification)
 
-    modified_graph = modifier.apply_modifications()
+    modified_graph = modifier.apply_modifications(False)
 
     # 5. Visualize the modified graph
     visualizer = QEPVisualizer(modified_graph).visualize(VIZ_DIR / "modified_qep_tree.png")
