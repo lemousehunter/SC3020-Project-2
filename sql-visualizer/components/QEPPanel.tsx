@@ -8,6 +8,7 @@ import {
   Card,
   Divider,
   Group,
+  HoverCard,
   Notification,
   Select,
   Text,
@@ -424,43 +425,51 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         )}
       </Box>
 
-      <Box mt="md" style={{ display: 'flex', justifyContent: 'space-between' }}>
-        {selectedNode && (
-          <Group spacing="sm">
-            {selectedNode.node_type === 'SCAN' ? (
-              <Select
-                label="Change Scan Type"
-                placeholder="Select scan type"
-                data={['Seq Scan', 'Index Scan', 'Index Only Scan', 'Bitmap Heap Scan', 'Tid Scan']}
-                value={selectedNode.newType || ''}
-                onChange={handleScanChange}
-              />
-            ) : (
-              <Select
-                label="Change Join Type"
-                placeholder="Select join type"
-                data={['Hash Join', 'Merge Join', 'Nested Loop']}
-                value={selectedNode.newType || ''}
-                onChange={handleJoinChange}
-              />
-            )}
-            <Box style={{ alignSelf: 'flex-end' }}>
-              <Button onClick={confirmChange}>Confirm Change</Button>
-            </Box>
-          </Group>
-        )}
-        {/* Generate AQP Button */}
-        <Box style={{ alignSelf: 'flex-end', marginLeft: 'auto', marginTop: '25px' }}>
-          <Button
-            color="#CE3F44"
-            onClick={generateAQP}
-            style={{ width: '150px' }}
-            disabled={pendingChanges.length === 0}
-          >
-            Generate AQP
-          </Button>
+      {!generatedAQPData && (
+        <Box mt="md" style={{ display: 'flex', justifyContent: 'space-between' }}>
+          {selectedNode && (
+            <Group spacing="sm">
+              {selectedNode.node_type === 'SCAN' ? (
+                <Select
+                  label="Change Scan Type"
+                  placeholder="Select scan type"
+                  data={[
+                    'Seq Scan',
+                    'Index Scan',
+                    'Index Only Scan',
+                    'Bitmap Heap Scan',
+                    'Tid Scan',
+                  ]}
+                  value={selectedNode.newType || ''}
+                  onChange={handleScanChange}
+                />
+              ) : (
+                <Select
+                  label="Change Join Type"
+                  placeholder="Select join type"
+                  data={['Hash Join', 'Merge Join', 'Nested Loop']}
+                  value={selectedNode.newType || ''}
+                  onChange={handleJoinChange}
+                />
+              )}
+              <Box style={{ alignSelf: 'flex-end' }}>
+                <Button onClick={confirmChange}>Confirm Change</Button>
+              </Box>
+            </Group>
+          )}
+          {/* Generate AQP Button */}
+          <Box style={{ alignSelf: 'flex-end', marginLeft: 'auto', marginTop: '25px' }}>
+            <Button
+              color="#CE3F44"
+              onClick={generateAQP}
+              style={{ width: '150px' }}
+              disabled={pendingChanges.length === 0}
+            >
+              Generate AQP
+            </Button>
+          </Box>
         </Box>
-      </Box>
+      )}
 
       {showErrorNotification && (
         <Notification
@@ -506,6 +515,26 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
           <Blockquote color="red" style={{ fontSize: '14px', padding: '5px 10px' }}>
             Click on a node to start modifying the tree.
           </Blockquote>
+        </Box>
+      )}
+
+      {generatedAQPData && (
+        <Box mt="xl">
+          <Title order={5}>Hints</Title>
+          <Group mt="sm">
+            {Object.entries(mockAQPResponse.hints).map(([key, value]) => (
+              <HoverCard width={280} shadow="md" key={key}>
+                <HoverCard.Target>
+                  <Button variant="light" size="xs">
+                    {key}
+                  </Button>
+                </HoverCard.Target>
+                <HoverCard.Dropdown>
+                  <Text size="sm">{value}</Text>
+                </HoverCard.Dropdown>
+              </HoverCard>
+            ))}
+          </Group>
         </Box>
       )}
     </Card>
