@@ -1,6 +1,4 @@
-'use client';
-
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { IconCheck, IconX } from '@tabler/icons-react';
 import Tree from 'react-d3-tree';
 import {
@@ -30,6 +28,10 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   const [pendingChanges, setPendingChanges] = useState<{ id: string; newType: string }[]>([]);
   const [showErrorNotification, setShowErrorNotification] = useState(false);
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
+  const [translate, setTranslate] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Ref to get the container dimensions
+  const treeContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (qepData) {
@@ -38,6 +40,14 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
       setModifiedTreeData(JSON.parse(JSON.stringify(treeData))); // Initialize modifiedTreeData without costs
     }
   }, [qepData]);
+
+  useEffect(() => {
+    // Center the tree in the container when it first loads
+    if (treeContainerRef.current) {
+      const { clientWidth, clientHeight } = treeContainerRef.current;
+      setTranslate({ x: clientWidth / 2.2, y: clientHeight / 5 });
+    }
+  }, [qepTreeData]);
 
   const handleNodeClick = (node: any) => {
     const nodeId = node.data.id || 'Unknown ID';
@@ -99,8 +109,11 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
 
   const renderCustomNode = ({ nodeDatum, hierarchyPointNode }: any) => {
     const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
-    const fillColor = isSelected ? '#CE3F44' : nodeDatum.isLeaf ? '#EAF6FB' : '#B0D4FF';
-    const textColor = isSelected ? '#CE3F44' : '#000';
+
+    // Node colors
+    const fillColor = nodeDatum.isLeaf ? '#EAF6FB' : '#B0D4FF'; // Keep fill color consistent
+    const strokeColor = isSelected ? '#FF4500' : '#000'; // Change stroke color when selected
+    const textColor = '#000'; // Keep text color consistent
 
     // Adjust the table text to fit within a certain max line length
     const maxLineLength = 20; // Maximum number of characters per line
@@ -115,7 +128,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
 
     return (
       <g onClick={() => handleNodeClick(hierarchyPointNode)}>
-        {/* Node rectangle with dynamic height */}
+        {/* Node rectangle with dynamic height and stroke color */}
         <rect
           x="-75"
           y={-totalHeight / 2}
@@ -123,8 +136,8 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
           height={totalHeight}
           rx="15"
           fill={fillColor}
-          stroke={isSelected ? '#CE3F44' : '#000'}
-          strokeWidth={isSelected ? 3 : 1}
+          stroke={strokeColor}
+          strokeWidth={isSelected ? 3 : 1} // Thicker stroke for selected node
         />
         {/* Node type */}
         <text
@@ -160,10 +173,11 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   return (
     <Card shadow="sm" padding="lg" mt="md" style={{ height: '98%' }}>
       <Title order={4}>QEP Panel</Title>
-      <Text>Visualized Query Execution Plan (QEP):</Text>
+      <Text>Visualized Query Execution Plan (QEP): Drag the tree for better view</Text>
 
       <Box
         mt="md"
+        ref={treeContainerRef}
         style={{
           display: 'flex',
           flexDirection: 'row',
@@ -189,7 +203,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
               data={qepTreeData}
               orientation="vertical"
               pathFunc="straight"
-              translate={{ x: 200, y: 50 }}
+              translate={translate}
               separation={{ siblings: 2, nonSiblings: 2.5 }}
               renderCustomNodeElement={renderCustomNode}
               collapsible={false}
@@ -214,7 +228,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
                   data={modifiedTreeData}
                   orientation="vertical"
                   pathFunc="straight"
-                  translate={{ x: 200, y: 50 }}
+                  translate={translate}
                   separation={{ siblings: 2, nonSiblings: 2.5 }}
                   renderCustomNodeElement={renderCustomNode}
                   collapsible={false}
