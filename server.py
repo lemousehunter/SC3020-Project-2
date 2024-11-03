@@ -225,11 +225,15 @@ def modify_query():
         # Get new QEP with modifications
         modified_graph: nx.DiGraph = qep_modifier.apply_modifications()
 
+        print("modified qep successfully")
+
         hints, lst_hints = HintConstructor(modified_graph).generate_hints(query)
         modified_query = QueryModifier(
             query=query,
             hint=hints
         ).modify()
+
+        print("modified query successfully")
 
         dict_hints = {}
 
@@ -258,7 +262,7 @@ def modify_query():
                 "join_or_scan": type_name,
                 "type": node_type,
                 "cost": data.get('cost', -1),  # Use actual node cost instead of always using Hash Join cost
-                "isLeaf": len(list(modified_graph.neighbors(node_id))) == 0,
+                "isLeaf": len(list(updated_graph.neighbors(node_id))) == 0,
                 "conditions": data.get('conditions', []),
                 "tables": sorted(list(data.get('tables', set()))),
                 "isRoot": data.get('is_root', False)
