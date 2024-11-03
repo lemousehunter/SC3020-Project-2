@@ -144,7 +144,8 @@ def get_query_plan():
                 "cost": data.get('cost', -1),  # Use actual node cost instead of always using Hash Join cost
                 "isLeaf": len(list(original_graph.neighbors(node_id))) == 0,
                 "conditions": data.get('conditions', []),
-                "tables": sorted(list(data.get('tables', set())))
+                "tables": sorted(list(data.get('tables', set()))),
+                "isRoot": data.get('is_root', False)
             }
 
             nodes.append(node_info)
@@ -259,7 +260,8 @@ def modify_query():
                 "cost": data.get('cost', -1),  # Use actual node cost instead of always using Hash Join cost
                 "isLeaf": len(list(modified_graph.neighbors(node_id))) == 0,
                 "conditions": data.get('conditions', []),
-                "tables": sorted(list(data.get('tables', set())))
+                "tables": sorted(list(data.get('tables', set()))),
+                "isRoot": data.get('is_root', False)
             }
 
             nodes.append(node_info)
