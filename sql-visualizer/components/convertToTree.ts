@@ -9,9 +9,12 @@ export function convertNetworkXToTree(networkXData: any) {
     nodeMap.set(node.id, {
       id: node.id,
       type: node.type,
-      node_type: node.node_type, // Use node_type instead of isLeaf
+      node_type: node.node_type || (node.isLeaf ? 'LEAF' : 'INTERNAL'), // Default node type
       cost: node.cost || 'N/A',
       table: splitTableText,
+      isLeaf: node.isLeaf || false,
+      isRoot: node.isRoot || false,
+      conditions: node.conditions || [],
       children: [],
     });
   });
@@ -24,5 +27,7 @@ export function convertNetworkXToTree(networkXData: any) {
     }
   });
 
-  return nodeMap.get('1'); // Assuming '1' is the root node ID
+  // Find the root node dynamically
+  const rootNode = Array.from(nodeMap.values()).find((node: any) => node.isRoot);
+  return rootNode || nodeMap.values().next().value; // Return root or fallback to the first node
 }
