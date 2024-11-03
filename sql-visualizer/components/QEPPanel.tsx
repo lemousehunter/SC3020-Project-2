@@ -162,52 +162,59 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
       return;
     }
 
-    const exampleModificationRequest = {
-      modifications: pendingChanges.map((change) => {
-        const node = findNodeById(modifiedTreeData, change.id); // Use the helper function
+    // Prepare the modifications array in the required format
+    const modifications = pendingChanges.map((change) => {
+      const node = findNodeById(modifiedTreeData, change.id);
 
-        return {
-          node_type: node?.node_type || 'N/A', // Assuming `node_type` is in the `node`
-          original_type: change.originalType,
-          new_type: change.newType,
-          tables: Array.isArray(node?.table) ? node.table.join(', ') : node?.table || 'No tables', // Convert to string if array
-          node_id: change.id,
-        };
-      }),
+      return {
+        node_type: node?.node_type || 'N/A', // Assuming `node_type` is in the `node`
+        original_type: change.originalType,
+        new_type: change.newType,
+        tables: Array.isArray(node?.table) ? node.table : [node?.table || 'No tables'],
+        node_id: change.id,
+      };
+    });
+
+    // Prepare the request body
+    const requestBody = {
+      query: modifiedSQL || 'select * from customer C, orders O where C.c_custkey = O.o_custkey', // Use actual query or a placeholder
+      modifications,
     };
 
-    setModifiedSQL(mockAQPResponse.modifiedSQL);
-    setTotalCostOriginalQEP(mockAQPResponse.totalCostOriginalQEP);
+    try {
+      // Send the request to the backend API
+      const response = await fetch('http://127.0.0.1:5000/api/query/plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
 
-    setTotalCostAQP(mockAQPResponse.totalCostAQP);
+      // Handle response
+      if (response.ok) {
+        const responseData = await response.json();
 
-    const aqpTreeData = convertAQPToTree(mockAQPResponse.aqpData);
+        // Assuming the response contains modified SQL and the AQP tree data
+        setModifiedSQL(responseData.modifiedSQL || mockAQPResponse.modifiedSQL);
+        setTotalCostOriginalQEP(
+          responseData.totalCostOriginalQEP || mockAQPResponse.totalCostOriginalQEP
+        );
+        setTotalCostAQP(responseData.totalCostAQP || mockAQPResponse.totalCostAQP);
 
-    setGeneratedAQPData(aqpTreeData); // Set the new AQP tree data to display
+        // Convert the response AQP data to a tree structure
+        const aqpTreeData = convertAQPToTree(responseData.aqpData || mockAQPResponse.aqpData);
+        setGeneratedAQPData(aqpTreeData); // Set the new AQP tree data to display
 
-    applyWhatIfChanges(mockAQPResponse.modifiedSQL); // Use callback to pass modified SQL back to HomePage
-
-    setPendingChanges([]);
-    setShowSuccessNotification(true);
-
-    // try {
-    //   const response = await fetch('/your-backend-endpoint', {
-    //     method: 'POST',
-    //     headers: {
-    //       'Content-Type': 'application/json',
-    //     },
-    //     body: JSON.stringify(exampleModificationRequest),
-    //   });
-
-    //   if (response.ok) {
-    //     setShowSuccessNotification(true);
-    //   } else {
-    //     setShowErrorNotification(true);
-    //   }
-    // } catch (error) {
-    //   console.error('Error generating AQP:', error);
-    //   setShowErrorNotification(true);
-    // }
+        setPendingChanges([]);
+        setShowSuccessNotification(true);
+      } else {
+        throw new Error('Failed to generate AQP');
+      }
+    } catch (error) {
+      console.error('Error generating AQP:', error);
+      setShowErrorNotification(true);
+    }
   };
 
   const renderQEPNode = ({ nodeDatum, hierarchyPointNode }: any) => {

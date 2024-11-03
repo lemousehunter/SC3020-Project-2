@@ -72,15 +72,46 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    fetch('/api/database/available')
+    fetch('http://127.0.0.1:5000/api/database/available')
       .then((response) => response.json())
       .then((data) => setDatabases(data.databases))
       .catch((error) => console.error('Error fetching databases:', error));
   }, []);
 
-  const handleDatabaseSelect = (value: string | null) => {
-    setSelectedDatabase(value);
-    setNotification((prev) => ({ ...prev, show: false }));
+  const handleDatabaseSelect = async (value: string | null) => {
+    if (!value) {
+      setNotification({ message: 'Please select a database.', show: true });
+      return;
+    }
+
+    try {
+      // Send the selected database to the backend API
+      const response = await fetch('http://127.0.0.1:5000/api/database/select', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ database: value }), // Send selected database as JSON
+      });
+
+      // Check if the response is successful
+      if (!response.ok) {
+        throw new Error('Failed to select the database');
+      }
+
+      // Assuming the API response includes a message or some confirmation
+      const data = await response.json();
+      setNotification({ message: 'Database selected successfully!', show: true });
+
+      // Update the selected database in the state
+      setSelectedDatabase(value);
+    } catch (error) {
+      console.error('Error selecting database:', error);
+      setNotification({
+        message: 'Error selecting database. Please try again later.',
+        show: true,
+      });
+    }
   };
 
   const handleQuerySubmit = async (query: string) => {
