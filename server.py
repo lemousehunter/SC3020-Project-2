@@ -207,12 +207,10 @@ def modify_query():
                 node_type_str = mod.get('node_type')
                 if not node_type_str:
                     raise ValueError("node_type is required")
-                
-                node_type = NodeType[node_type_str]
                 tables = set(mod.get('tables', []))
                 
                 query_mod = QueryModification(
-                    node_type=node_type,
+                    node_type=node_type_str,
                     original_type=mod.get('original_type'),
                     new_type=mod.get('new_type'),
                     tables=tables,
@@ -220,11 +218,6 @@ def modify_query():
                 )
                 qep_modifier.add_modification(query_mod)
                 
-            except KeyError:
-                return jsonify({
-                    "status": "error",
-                    "message": f"Invalid node_type: {node_type_str}. Must be one of {[e.name for e in NodeType]}"
-                }), 400
             except Exception as e:
                 return jsonify({
                     "status": "error",
