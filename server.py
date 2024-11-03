@@ -224,11 +224,16 @@ def modify_query():
         # Get new QEP with modifications
         modified_graph: nx.DiGraph = qep_modifier.apply_modifications()
 
-        hints = HintConstructor(modified_graph).generate_hints(query)
+        hints, lst_hints = HintConstructor(modified_graph).generate_hints(query)
         modified_query = QueryModifier(
             query=query,
             hint=hints
         ).modify()
+
+        dict_hints = {}
+
+        for hint in lst_hints:
+            dict_hints[hint] = "Some Explanation"
 
         updated_qep = active_db_connection.get_qep(modified_query)
 
@@ -272,7 +277,8 @@ def modify_query():
             "updated_networkx_object": {
                 "nodes": nodes,
                 "edges": edges
-            }
+            },
+            "hints": dict_hints
         }), 200
 
     except Exception as e:

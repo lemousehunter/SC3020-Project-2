@@ -182,7 +182,7 @@ class HintConstructor:
                         join_hints.append(f"{self.join_hint_map[join_type]}({' '.join(sorted(aliases))})")
         return join_hints
 
-    def generate_hints(self, query: str) -> str:
+    def generate_hints(self, query: str) -> Tuple[str, List[str]]:
         """Generate complete hint string."""
         # First extract aliases from the query
         self.extract_aliases_from_query(query)
@@ -204,4 +204,4 @@ class HintConstructor:
         hints.extend(scan_hints)
 
         # Combine all hints
-        return f"/*+ {' '.join(hints)} */"
+        return f"/*+ {' '.join(hints)} */", hints
