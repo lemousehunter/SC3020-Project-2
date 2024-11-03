@@ -5,6 +5,7 @@ from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_modifier import QEPModifier
 from src.database.query_modifier import QueryModifier
 from src.types.qep_types import NodeType, QueryModification
+from src.database.hint_generator import HintConstructor
 from enum import Enum
 from typing import Set
 import networkx as nx
@@ -130,6 +131,7 @@ def get_query_plan():
                 "isLeaf": len(list(graph.neighbors(node_id))) == 0,
                 "conditions": data.get('conditions', []),
                 "tables": sorted(data.get('tables', [])),
+                "isRoot": data.get('is_root', False)
             }
             # Only add table if there's exactly one table
             if len(node_info["tables"]) == 1:
@@ -186,56 +188,14 @@ def modify_query():
 
         # Get original QEP
         qep_data = active_db_connection.get_qep(query)
-        original_cost = qep_data[0][0][0]['Plan']['Total Cost']
         
         # Parse QEP into graph
-        modified_graph = nx.DiGraph()
-        plan = qep_data[0][0][0]['Plan']
-        
-        def parse_qep_node(plan, graph, parent_id=None):
-            """
-            Recursively parse QEP nodes and build the graph structure
-            """
-            node_id = str(uuid.uuid4())
-            
-            # Extract basic node information
-            node_type = plan.get('Node Type', '')
-            total_cost = plan.get('Total Cost', -1)
-            
-            # Initialize node data
-            node_data = {
-                'node_type': node_type,
-                'cost': total_cost,
-                'conditions': [],
-                'tables': set()
-            }
-            
-            # Extract table information
-            if 'Relation Name' in plan:
-                node_data['tables'].add(plan['Relation Name'])
-            
-            # Extract join conditions
-            if 'Hash Cond' in plan:
-                node_data['conditions'].append(plan['Hash Cond'])
-            
-            # Add node to graph
-            graph.add_node(node_id, **node_data)
-            
-            # Connect to parent if exists
-            if parent_id:
-                graph.add_edge(parent_id, node_id)
-            
-            # Recursively process child plans
-            if 'Plans' in plan:
-                for child_plan in plan['Plans']:
-                    parse_qep_node(child_plan, graph, node_id)
-            
-            return node_id
-        
-        # Parse the initial QEP
-        parse_qep_node(plan, modified_graph)
+        parser = QEPParser()
+        original_graph: nx.DiGraph = parser.parse(qep_data)
+        original_cost = parser.get_total_cost()
         
         # Process modifications
+        qep_modifier = QEPModifier(original_graph)
         for mod in modifications:
             try:
                 node_type_str = mod.get('node_type')
@@ -252,23 +212,32 @@ def modify_query():
                     tables=tables,
                     node_id=mod.get('node_id', '')
                 )
-                
-                # Apply modification logic here if needed
+                qep_modifier.add_modification(query_mod)
                 
             except KeyError:
                 return jsonify({
                     "status": "error",
                     "message": f"Invalid node_type: {node_type_str}. Must be one of {[e.name for e in NodeType]}"
                 }), 400
-            except Exception as e:
+            """except Exception as e:
                 return jsonify({
                     "status": "error",
                     "message": f"Error processing modification: {str(e)}"
-                }), 400
+                }), 400"""
 
         # Get new QEP with modifications
-        modified_qep = active_db_connection.get_qep(query)
-        modified_cost = modified_qep[0][0][0]['Plan']['Total Cost']
+        modified_graph: nx.DiGraph = qep_modifier.apply_modifications()
+
+        hints = HintConstructor(modified_graph).generate_hints(query)
+        modified_query = QueryModifier(
+            query=query,
+            hint=hints
+        ).modify()
+
+        updated_qep = active_db_connection.get_qep(modified_query)
+
+        updated_graph = parser.parse(updated_qep)
+        modified_cost = parser.get_total_cost()
 
         # Extract node information
         nodes = []
@@ -281,11 +250,10 @@ def modify_query():
                 "conditions": data.get('conditions', []),
                 "tables": sorted(list(data.get('tables', set())))
             }
-            if len(node_info["tables"]) == 1:
-                node_info["table"] = node_info["tables"][0]
+
             nodes.append(node_info)
 
-        edges = [{"source": u, "target": v} for u, v in modified_graph.edges()]
+        edges = [{"source": u, "target": v} for u, v in updated_graph.edges()]
 
         return jsonify({
             "status": "success",
