@@ -23,9 +23,10 @@ import { convertAQPToTree } from './convertAQPToTree';
 interface QEPPanelProps {
   applyWhatIfChanges: (newSQL: string) => void;
   qepData: any | null;
+  query: string; // Add query as a prop
 }
 
-export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps) {
+export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPanelProps) {
   const [qepTreeData, setQepTreeData] = useState<any | null>(null);
   const [modifiedTreeData, setModifiedTreeData] = useState<any | null>(null);
   const [selectedNode, setSelectedNode] = useState<any | null>(null);
@@ -41,38 +42,9 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   const [modifiedSQL, setModifiedSQL] = useState<string>('');
   const [totalCostOriginalQEP, setTotalCostOriginalQEP] = useState<number | null>(null);
   const [generatedAQPData, setGeneratedAQPData] = useState<any | null>(null);
+  const [apiHints, setApiHints] = useState<{ [key: string]: string }>({});
 
   const [totalCostAQP, setTotalCostAQP] = useState<number | null>(null);
-
-  const mockAQPResponse = {
-    modifiedSQL: 'SELECT * FROM orders JOIN customers ON ...', // Modified SQL
-    totalCostOriginalQEP: 500,
-    totalCostAQP: 400,
-    aqpData: {
-      nodes: [
-        { id: '1', type: 'Nested Loop', table: 'orders, customers', cost: 120, node_type: 'JOIN' },
-        { id: '2', type: 'Index Scan', table: 'customers', cost: 80, node_type: 'SCAN' },
-        { id: '3', type: 'Hash', table: 'orders', cost: 200, node_type: 'JOIN' },
-        { id: '4', type: 'Seq Scan', table: 'orders', cost: 150, node_type: 'SCAN' },
-      ],
-      edges: [
-        { source: '1', target: '2' },
-        { source: '1', target: '3' },
-        { source: '3', target: '4' },
-      ],
-    },
-    hints: {
-      Leading: 'Leading((((l s) o) c))',
-      HashJoin_ls: 'HashJoin(l s)',
-      HashJoin_los: 'HashJoin(l o s)',
-      SeqScan_l: 'SeqScan(l)',
-      SeqScan_s: 'SeqScan(s)',
-      IndexScan_l: 'IndexScan(l)',
-      IndexScan_s: 'IndexScan(s)',
-      SeqScan_o: 'SeqScan(o)',
-      BitmapScan_c: 'BitmapScan(c)',
-    },
-  };
 
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
@@ -162,12 +134,10 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
       return;
     }
 
-    // Prepare the modifications array in the required format
     const modifications = pendingChanges.map((change) => {
       const node = findNodeById(modifiedTreeData, change.id);
-
       return {
-        node_type: node?.node_type || 'N/A', // Assuming `node_type` is in the `node`
+        node_type: node?.type?.toUpperCase() || 'N/A', // Maps `join_or_scan` to `node_type`
         original_type: change.originalType,
         new_type: change.newType,
         tables: Array.isArray(node?.table) ? node.table : [node?.table || 'No tables'],
@@ -175,15 +145,15 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
       };
     });
 
-    // Prepare the request body
     const requestBody = {
-      query: modifiedSQL || 'select * from customer C, orders O where C.c_custkey = O.o_custkey', // Use actual query or a placeholder
+      query,
       modifications,
     };
 
+    console.log(requestBody);
+
     try {
-      // Send the request to the backend API
-      const response = await fetch('http://127.0.0.1:5000/api/query/plan', {
+      const response = await fetch('http://127.0.0.1:5000/api/query/modify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -191,20 +161,39 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         body: JSON.stringify(requestBody),
       });
 
-      // Handle response
       if (response.ok) {
         const responseData = await response.json();
 
-        // Assuming the response contains modified SQL and the AQP tree data
-        setModifiedSQL(responseData.modifiedSQL || mockAQPResponse.modifiedSQL);
-        setTotalCostOriginalQEP(
-          responseData.totalCostOriginalQEP || mockAQPResponse.totalCostOriginalQEP
-        );
-        setTotalCostAQP(responseData.totalCostAQP || mockAQPResponse.totalCostAQP);
+        console.log('API Response:', responseData);
 
-        // Convert the response AQP data to a tree structure
-        const aqpTreeData = convertAQPToTree(responseData.aqpData || mockAQPResponse.aqpData);
-        setGeneratedAQPData(aqpTreeData); // Set the new AQP tree data to display
+        const modifiedSql = responseData.modified_sql_query || '';
+        const originalCost = responseData.cost_comparison?.original_cost || 0;
+        const modifiedCost = responseData.cost_comparison?.modified_cost || 0;
+        const updatedNetworkXObject = responseData.updated_networkx_object;
+        const hints = responseData.hints || {};
+
+        if (!updatedNetworkXObject) {
+          console.error('Error: updated_networkx_object is missing from the response.');
+          setShowErrorNotification(true);
+          setNotification({
+            message:
+              'Error: updated_networkx_object is missing in the response. Please check with the API.',
+            show: true,
+          });
+          return;
+        }
+
+        setModifiedSQL(modifiedSql);
+        setTotalCostOriginalQEP(originalCost);
+        setTotalCostAQP(modifiedCost);
+        setApiHints(hints);
+
+        applyWhatIfChanges(modifiedSql);
+
+        console.log(updatedNetworkXObject);
+
+        const aqpTreeData = convertAQPToTree(updatedNetworkXObject);
+        setGeneratedAQPData(aqpTreeData);
 
         setPendingChanges([]);
         setShowSuccessNotification(true);
@@ -214,19 +203,30 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
     } catch (error) {
       console.error('Error generating AQP:', error);
       setShowErrorNotification(true);
+      setNotification({
+        message: 'Error generating AQP. Please try again later or check the server logs.',
+        show: true,
+      });
     }
   };
 
   const renderQEPNode = ({ nodeDatum, hierarchyPointNode }: any) => {
     const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
-    const fillColor = nodeDatum.join_or_scan === 'Scan' ? '#EAF6FB' : '#B0D4FF'; // Use join_or_scan for color
+    const fillColor =
+      nodeDatum.join_or_scan === 'Scan'
+        ? '#FFD700'
+        : nodeDatum.join_or_scan === 'Unknown'
+          ? '#EAF6FB'
+          : '#B0D4FF'; // Default color for other types// Use join_or_scan for color
     const strokeColor = isSelected && nodeDatum.join_or_scan !== 'Unknown' ? '#FF4500' : '#000';
     const textColor = '#000';
 
     const maxLineLength = 20;
     const splitTableText = Array.isArray(nodeDatum.table)
       ? nodeDatum.table
-      : nodeDatum.table.match(new RegExp(`.{1,${maxLineLength}}`, 'g')) || ['No tables'];
+      : typeof nodeDatum.table === 'string'
+        ? nodeDatum.table.match(new RegExp(`.{1,${maxLineLength}}`, 'g'))
+        : ['No tables'];
 
     const baseHeight = 60;
     const lineHeight = 18;
@@ -530,7 +530,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         <Box mt="xl">
           <Title order={5}>Hints</Title>
           <Group mt="sm">
-            {Object.entries(mockAQPResponse.hints).map(([key, value]) => (
+            {Object.entries(apiHints).map(([key, value]) => (
               <HoverCard width={280} shadow="md" key={key}>
                 <HoverCard.Target>
                   <Button variant="light" size="xs">
