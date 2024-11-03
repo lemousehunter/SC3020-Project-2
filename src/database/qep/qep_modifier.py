@@ -96,9 +96,32 @@ class QEPModifier:
                     for node_id in matching_nodes:
                         self._update_node_type(node_id, modification.new_type)
 
-            # Clear costs after applying modifications
-        self.clear_costs()
         return self.graph
+    
+    def get_total_cost(self) -> float:
+        """
+        Calculate the total cost by summing the 'cost' attribute of all nodes in the graph.
+        
+        Parameters:
+        G (networkx.Graph): A NetworkX graph where nodes have a 'cost' attribute
+        
+        Returns:
+        float: The total cost sum across all nodes
+        
+        Raises:
+        KeyError: If any node is missing the 'cost' attribute
+        """
+        total_cost = 0
+        
+        # Iterate through all nodes and sum their costs
+        for node in self.graph.nodes():
+            try:
+                node_cost = self.graph.nodes[node]['cost']
+                total_cost += node_cost
+            except KeyError:
+                raise KeyError(f"Node {node} is missing the 'cost' attribute")
+                
+        return total_cost
 
     def reset(self):
         """Reset modifications list."""
