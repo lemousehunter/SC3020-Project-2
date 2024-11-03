@@ -144,7 +144,8 @@ def get_query_plan():
                 "cost": data.get('cost', -1),  # Use actual node cost instead of always using Hash Join cost
                 "isLeaf": len(list(original_graph.neighbors(node_id))) == 0,
                 "conditions": data.get('conditions', []),
-                "tables": sorted(list(data.get('tables', set())))
+                "tables": sorted(list(data.get('tables', set()))),
+                "isRoot": data.get('is_root', False)
             }
 
             nodes.append(node_info)
@@ -224,11 +225,16 @@ def modify_query():
         # Get new QEP with modifications
         modified_graph: nx.DiGraph = qep_modifier.apply_modifications()
 
-        hints = HintConstructor(modified_graph).generate_hints(query)
+        hints, lst_hints = HintConstructor(modified_graph).generate_hints(query)
         modified_query = QueryModifier(
             query=query,
             hint=hints
         ).modify()
+
+        dict_hints = {}
+
+        for hint in lst_hints:
+            dict_hints[hint] = "Some Explanation"
 
         updated_qep = active_db_connection.get_qep(modified_query)
 
@@ -254,7 +260,8 @@ def modify_query():
                 "cost": data.get('cost', -1),  # Use actual node cost instead of always using Hash Join cost
                 "isLeaf": len(list(modified_graph.neighbors(node_id))) == 0,
                 "conditions": data.get('conditions', []),
-                "tables": sorted(list(data.get('tables', set())))
+                "tables": sorted(list(data.get('tables', set()))),
+                "isRoot": data.get('is_root', False)
             }
 
             nodes.append(node_info)
@@ -272,7 +279,8 @@ def modify_query():
             "updated_networkx_object": {
                 "nodes": nodes,
                 "edges": edges
-            }
+            },
+            "hints": dict_hints
         }), 200
 
     except Exception as e:
