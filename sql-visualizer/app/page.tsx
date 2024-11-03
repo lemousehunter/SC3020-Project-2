@@ -79,6 +79,7 @@ export default function HomePage() {
   }, []);
 
   const handleDatabaseSelect = async (value: string | null) => {
+    console.log(value);
     if (!value) {
       setNotification({ message: 'Please select a database.', show: true });
       return;
@@ -200,13 +201,7 @@ export default function HomePage() {
           <Select
             label="Database"
             placeholder="Select database"
-            data={[
-              { value: 'postgresql', label: 'TPC-H' },
-              { value: 'mysql', label: 'TPC-A' },
-              { value: 'oracle', label: 'TPC-B' },
-              { value: 'sqlserver', label: 'TPC-L' },
-            ]}
-            //data={databases}
+            data={databases}
             value={selectedDatabase}
             onChange={handleDatabaseSelect}
             searchable
