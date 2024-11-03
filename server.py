@@ -276,7 +276,7 @@ def modify_query():
         return jsonify({
             "status": "success",
             "message": "QEP modifications applied successfully",
-            "modified_sql_query": query,
+            "modified_sql_query": modified_query,
             "cost_comparison": {
                 "original_cost": original_cost,
                 "modified_cost": modified_cost
