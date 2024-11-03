@@ -100,9 +100,9 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   const handleNodeClick = (node: any) => {
     const nodeId = node.data.id || 'Unknown ID';
     const nodeType = node.data.type || 'Unknown Type';
-    const nodeCategory = node.data.node_type || 'Unknown';
+    const nodeCategory = node.data.join_or_scan || 'Unknown'; // Changed to join_or_scan
 
-    setSelectedNode({ id: nodeId, type: nodeType, node_type: nodeCategory });
+    setSelectedNode({ id: nodeId, type: nodeType, join_or_scan: nodeCategory });
   };
 
   const handleScanChange = (value: string | null) => {
@@ -118,7 +118,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
   };
 
   const confirmChange = () => {
-    if (selectedNode && selectedNode.newType) {
+    if (selectedNode && selectedNode.newType && selectedNode.join_or_scan !== 'Unknown') {
       const updatedTreeData = JSON.parse(JSON.stringify(modifiedTreeData));
       updateTreeData(updatedTreeData, selectedNode.id, selectedNode.newType);
       setModifiedTreeData(updatedTreeData);
@@ -128,10 +128,10 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
         {
           id: selectedNode.id,
           newType: selectedNode.newType,
-          originalType: selectedNode.type, // Capture the original type here
+          originalType: selectedNode.type,
         },
       ]);
-      setSelectedNode(null); // Clear selected node after confirming change
+      setSelectedNode(null);
     }
   };
 
@@ -219,8 +219,8 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
 
   const renderQEPNode = ({ nodeDatum, hierarchyPointNode }: any) => {
     const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
-    const fillColor = nodeDatum.node_type === 'SCAN' ? '#EAF6FB' : '#B0D4FF';
-    const strokeColor = isSelected ? '#FF4500' : '#000';
+    const fillColor = nodeDatum.join_or_scan === 'Scan' ? '#EAF6FB' : '#B0D4FF'; // Use join_or_scan for color
+    const strokeColor = isSelected && nodeDatum.join_or_scan !== 'Unknown' ? '#FF4500' : '#000';
     const textColor = '#000';
 
     const maxLineLength = 20;
@@ -274,8 +274,8 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
 
   const renderPreviewNode = ({ nodeDatum, hierarchyPointNode }: any) => {
     const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
-    const fillColor = nodeDatum.node_type === 'SCAN' ? '#EAF6FB' : '#B0D4FF'; // Set color based on node type
-    const strokeColor = isSelected ? '#FF4500' : '#000'; // Highlight if selected
+    const fillColor = nodeDatum.join_or_scan === 'Scan' ? '#EAF6FB' : '#B0D4FF'; // Use join_or_scan for color
+    const strokeColor = isSelected && nodeDatum.join_or_scan !== 'Unknown' ? '#FF4500' : '#000';
     const textColor = '#000'; // Text color
 
     // Split table text into lines
@@ -434,9 +434,9 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
 
       {!generatedAQPData && (
         <Box mt="md" style={{ display: 'flex', justifyContent: 'space-between' }}>
-          {selectedNode && (
+          {selectedNode && selectedNode.join_or_scan !== 'Unknown' && (
             <Group spacing="sm">
-              {selectedNode.node_type === 'SCAN' ? (
+              {selectedNode.join_or_scan === 'Scan' ? (
                 <Select
                   label="Change Scan Type"
                   placeholder="Select scan type"
@@ -464,6 +464,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData }: QEPPanelProps)
               </Box>
             </Group>
           )}
+
           {/* Generate AQP Button */}
           <Box style={{ alignSelf: 'flex-end', marginLeft: 'auto', marginTop: '25px' }}>
             <Button
