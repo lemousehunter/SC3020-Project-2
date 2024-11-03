@@ -32,24 +32,43 @@ export default function HomePage() {
   });
 
   const mockQEPNetworkXData = {
-    nodes: [
-      {
-        id: '1',
-        type: 'Hash Join',
-        node_type: 'JOIN', // Changed from isLeaf to node_type
-        table:
-          'orders, customerasfaheifashfkjadshfjkashfjksahfjkashfjkadshfjkadshfjkshfjkashfjkadshfjkadshfjkdshfjkshfkhfjkdh',
-        cost: 200,
-      },
-      { id: '2', type: 'Seq Scan', node_type: 'SCAN', table: 'customer', cost: 100 },
-      { id: '3', type: 'Hash', node_type: 'JOIN', table: 'orders', cost: 150 },
-      { id: '4', type: 'Seq Scan', node_type: 'SCAN', table: 'orders', cost: 100 },
-    ],
-    edges: [
-      { source: '1', target: '2' },
-      { source: '1', target: '3' },
-      { source: '3', target: '4' },
-    ],
+    sql_query:
+      'SELECT /*+ Leading( ( ( (l s) o) c) )  NestLoop( c o l s) HashJoin( l s ) HashJoin( l o ) BitmapScan(c) */ * FROM customer C, orders O, lineitem L, supplier S WHERE C.c_custkey = O.o_custkey AND O.o_orderkey = L.l_orderkey AND L.l_suppkey = S.s_suppkey AND L.l_quantity > (SELECT AVG(L2.l_quantity) FROM lineitem L2 WHERE L2.l_suppkey = S.s_suppkey)',
+    cost: 35594434.57,
+    message: 'Query plan generated successfully',
+    networkx_object: {
+      nodes: [
+        {
+          id: 'fc357241-d4b4-4caf-8e6f-9a2d07030f12',
+          isLeaf: true,
+          isRoot: false,
+          type: 'Seq Scan',
+          table: 'lineitem',
+          tables: ['lineitem'],
+          cost: 172517.16,
+          conditions: [],
+        },
+        {
+          id: '254c0f89-aa03-4e22-a716-cedd7c551885',
+          isLeaf: false,
+          isRoot: true,
+          type: 'Hash Join',
+          tables: ['lineitem', 'supplier'],
+          cost: 27742206.55,
+          conditions: [
+            '(lineitem.l_suppkey = supplier.s_suppkey)',
+            '(lineitem.l_quantity > (SubPlan 1))',
+          ],
+        },
+      ],
+      edges: [
+        {
+          source: '254c0f89-aa03-4e22-a716-cedd7c551885',
+          target: 'fc357241-d4b4-4caf-8e6f-9a2d07030f12',
+        },
+      ],
+    },
+    status: 'success',
   };
 
   useEffect(() => {
@@ -64,7 +83,7 @@ export default function HomePage() {
     setNotification((prev) => ({ ...prev, show: false }));
   };
 
-  const handleQuerySubmit = (query: string) => {
+  const handleQuerySubmit = async (query: string) => {
     if (!selectedDatabase) {
       setNotification({
         message: 'Please select a database before submitting the query.',
@@ -78,7 +97,37 @@ export default function HomePage() {
       return;
     }
 
-    setQepData(mockQEPNetworkXData);
+    try {
+      // Send the query to the backend API
+      const response = await fetch('http://127.0.0.1:5000/api/query/plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query }), // send query in the request body
+      });
+
+      // Check if the response is successful
+      if (!response.ok) {
+        throw new Error('Failed to fetch QEP data');
+      }
+
+      // Parse the response JSON
+      const data = await response.json();
+
+      // Assuming 'networkx_object' is the key containing the QEP data
+      setQepData(data.networkx_object);
+      setNotification({
+        message: 'Query plan fetched successfully!',
+        show: false,
+      });
+    } catch (error) {
+      console.error('Error fetching QEP data:', error);
+      setNotification({
+        message: 'Error fetching QEP data. Please try again later.',
+        show: true,
+      });
+    }
   };
 
   const applyWhatIfChanges = (newSQL: string) => {
