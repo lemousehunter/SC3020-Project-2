@@ -4,7 +4,7 @@ from src.database.databaseManager import DatabaseManager
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_modifier import QEPModifier
 from src.database.query_modifier import QueryModifier
-from src.types.qep_types import NodeType, QueryModification
+from src.types.qep_types import NodeType, QueryModification, JoinType, ScanType
 from src.database.hint_generator import HintConstructor
 from enum import Enum
 from typing import Set
@@ -124,18 +124,24 @@ def get_query_plan():
         # Convert graph to networkx format for frontend
         nodes = []
         for node_id, data in graph.nodes(data=True):
+            node_type = data.get('node_type', '')
+            if node_type in JoinType.__members__:
+                type_name = "Join"
+            elif node_type in ScanType.__members__:
+                type_name = "Scan"
+            else:
+                type_name = "Unknown"
+
             node_info = {
                 "id": node_id,
-                "type": data.get('node_type', ''),
-                "cost": data.get('cost', 0),
+                "join_or_scan": type_name,
+                "type": node_type,
+                "cost": data.get('cost', -1),  # Use actual node cost instead of always using Hash Join cost
                 "isLeaf": len(list(graph.neighbors(node_id))) == 0,
                 "conditions": data.get('conditions', []),
-                "tables": sorted(data.get('tables', [])),
-                "isRoot": data.get('is_root', False)
+                "tables": sorted(list(data.get('tables', set())))
             }
-            # Only add table if there's exactly one table
-            if len(node_info["tables"]) == 1:
-                node_info["table"] = node_info["tables"][0]
+
             nodes.append(node_info)
 
         edges = [{"source": u, "target": v} for u, v in graph.edges()]
@@ -219,11 +225,11 @@ def modify_query():
                     "status": "error",
                     "message": f"Invalid node_type: {node_type_str}. Must be one of {[e.name for e in NodeType]}"
                 }), 400
-            """except Exception as e:
+            except Exception as e:
                 return jsonify({
                     "status": "error",
                     "message": f"Error processing modification: {str(e)}"
-                }), 400"""
+                }), 400
 
         # Get new QEP with modifications
         modified_graph: nx.DiGraph = qep_modifier.apply_modifications()
@@ -242,9 +248,18 @@ def modify_query():
         # Extract node information
         nodes = []
         for node_id, data in modified_graph.nodes(data=True):
+            node_type = data.get('node_type', '')
+            if node_type in JoinType.__members__:
+                type_name = "Join"
+            elif node_type in ScanType.__members__:
+                type_name = "Scan"
+            else:
+                type_name = "Unknown"
+
             node_info = {
                 "id": node_id,
-                "type": data.get('node_type', ''),
+                "join_or_scan": type_name,
+                "type": node_type,
                 "cost": data.get('cost', -1),  # Use actual node cost instead of always using Hash Join cost
                 "isLeaf": len(list(modified_graph.neighbors(node_id))) == 0,
                 "conditions": data.get('conditions', []),
