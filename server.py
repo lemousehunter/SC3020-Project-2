@@ -17,6 +17,9 @@ CORS(app)
 # Store active database connection
 active_db_connection = None
 
+global original_graph
+global parser
+
 @app.route('/api/database/available', methods=['GET'])
 def get_available_databases():
     """Get list of available databases"""
@@ -116,14 +119,16 @@ def get_query_plan():
         qep_data = active_db_connection.get_qep(query)
         
         # Parse QEP into graph using updated parser
+        global parser
         parser = QEPParser()
 
         # to standardise format
-        graph = parser.parse(qep_data)
+        global original_graph
+        original_graph = parser.parse(qep_data)
         
         # Convert graph to networkx format for frontend
         nodes = []
-        for node_id, data in graph.nodes(data=True):
+        for node_id, data in original_graph.nodes(data=True):
             node_type = data.get('node_type', '')
             if "Join" in node_type or "Nest" in node_type:
                 type_name = "Join"
@@ -137,18 +142,18 @@ def get_query_plan():
                 "join_or_scan": type_name,
                 "type": node_type,
                 "cost": data.get('cost', -1),  # Use actual node cost instead of always using Hash Join cost
-                "isLeaf": len(list(graph.neighbors(node_id))) == 0,
+                "isLeaf": len(list(original_graph.neighbors(node_id))) == 0,
                 "conditions": data.get('conditions', []),
                 "tables": sorted(list(data.get('tables', set())))
             }
 
             nodes.append(node_info)
 
-        edges = [{"source": u, "target": v} for u, v in graph.edges()]
+        edges = [{"source": u, "target": v} for u, v in original_graph.edges()]
 
         # Get total cost from root node
-        root_nodes = [n for n, d in graph.nodes(data=True) if d.get('is_root', False)]
-        total_cost = graph.nodes[root_nodes[0]]['cost'] if root_nodes else 0
+        root_nodes = [n for n, d in original_graph.nodes(data=True) if d.get('is_root', False)]
+        total_cost = original_graph.nodes[root_nodes[0]]['cost'] if root_nodes else 0
 
         return jsonify({
             "status": "success",
@@ -191,14 +196,6 @@ def modify_query():
                 "status": "error",
                 "message": "No database connection"
             }), 400
-
-        # Get original QEP
-        qep_data = active_db_connection.get_qep(query)
-        
-        # Parse QEP into graph
-        parser = QEPParser()
-        original_graph: nx.DiGraph = parser.parse(qep_data)
-        original_cost = parser.get_total_cost()
         
         # Process modifications
         qep_modifier = QEPModifier(original_graph)
@@ -217,7 +214,7 @@ def modify_query():
                     node_id=mod.get('node_id', '')
                 )
                 qep_modifier.add_modification(query_mod)
-                
+
             except Exception as e:
                 return jsonify({
                     "status": "error",
@@ -235,6 +232,7 @@ def modify_query():
 
         updated_qep = active_db_connection.get_qep(modified_query)
 
+        original_cost = parser.get_total_cost()
         updated_graph = parser.parse(updated_qep)
         modified_cost = parser.get_total_cost()
 
