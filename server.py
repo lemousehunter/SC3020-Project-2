@@ -199,6 +199,7 @@ def modify_query():
             }), 400
         
         # Process modifications
+        global original_graph
         qep_modifier = QEPModifier(original_graph)
         for mod in modifications:
             try:
