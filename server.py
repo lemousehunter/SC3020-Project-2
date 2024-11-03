@@ -244,7 +244,7 @@ def modify_query():
 
         # Extract node information
         nodes = []
-        for node_id, data in modified_graph.nodes(data=True):
+        for node_id, data in updated_graph.nodes(data=True):
             node_type = data.get('node_type', '')
             if "Join" in node_type or "Nest" in node_type:
                 type_name = "Join"
