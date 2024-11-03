@@ -125,9 +125,9 @@ def get_query_plan():
         nodes = []
         for node_id, data in graph.nodes(data=True):
             node_type = data.get('node_type', '')
-            if node_type in JoinType.__members__:
+            if "Join" in node_type or "Nest" in node_type:
                 type_name = "Join"
-            elif node_type in ScanType.__members__:
+            elif "Scan" in node_type:
                 type_name = "Scan"
             else:
                 type_name = "Unknown"
