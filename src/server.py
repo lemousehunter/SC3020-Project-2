@@ -16,7 +16,7 @@ from src.database.hint_generator import HintConstructor
 class DatabaseConfig:
     """Configuration for available databases"""
     name: str
-    label: str
+    value: str
 
 
 class QueryPlanManager:
@@ -125,7 +125,7 @@ class DatabaseServer:
             DatabaseConfig("oracle", "Oracle"),
             DatabaseConfig("sqlserver", "SQL Server")
         ]
-        return jsonify({"databases": [{"value": db.name, "label": db.label} for db in databases]}), 200
+        return jsonify({"databases": [{"value": db.name, "label": db.value} for db in databases]}), 200
 
     def select_database(self):
         """Select and connect to a database"""
