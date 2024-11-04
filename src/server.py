@@ -24,12 +24,11 @@ class QueryPlanManager:
 
     def __init__(self):
         self.original_graph: Optional[nx.DiGraph] = None
-        self.parser: Optional[QEPParser] = None
+        self.parser = QEPParser()
 
     def generate_plan(self, query: str, db_connection: DatabaseManager) -> Dict:
         """Generate query execution plan"""
         qep_data = db_connection.get_qep(query)
-        self.parser = QEPParser()
         self.original_graph = self.parser.parse(qep_data)
 
         return self._convert_graph_to_dict(self.original_graph)
