@@ -6,10 +6,7 @@ from src.database.qep.qep_modifier import QEPModifier
 from src.database.query_modifier import QueryModifier
 from src.types.qep_types import NodeType, QueryModification, JoinType, ScanType
 from src.database.hint_generator import HintConstructor
-from enum import Enum
-from typing import Set
 import networkx as nx
-import uuid
 
 app = Flask(__name__)
 CORS(app)
