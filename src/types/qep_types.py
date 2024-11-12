@@ -1,14 +1,25 @@
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import Enum, auto, EnumMeta
 from typing import Set
 
 
-class NodeType(Enum):
-    SCAN = auto()
-    JOIN = auto()
+class MetaEnum(EnumMeta):
+    def __contains__(self, item):
+        if item in self.__members__:
+            return True
+        else:
+            # Check in the values of the members
+            for member in self.__members__.values():
+                if item in member.value:
+                    return True
+            return False
 
 
-class ScanType(Enum):
+class BaseEnum(Enum, metaclass=MetaEnum):
+    pass
+
+
+class ScanType(BaseEnum):
     SEQ_SCAN = "Seq Scan"
     INDEX_SCAN = "Index Scan"
     INDEX_ONLY_SCAN = "Index Only Scan"
@@ -16,10 +27,15 @@ class ScanType(Enum):
     BITMAP_INDEX_SCAN = "Bitmap Index Scan"
 
 
-class JoinType(Enum):
+class JoinType(BaseEnum):
     NESTED_LOOP = "Nested Loop"
     HASH_JOIN = "Hash Join"
     MERGE_JOIN = "Merge Join"
+
+
+class NodeType(BaseEnum):
+    SCAN = ScanType
+    JOIN = JoinType
 
 
 @dataclass
@@ -36,3 +52,7 @@ class QueryModification:
             raise ValueError("Scan modifications must specify exactly one table")
         if self.node_type == NodeType.JOIN and len(self.tables) < 2:
             raise ValueError("Join modifications must specify 2 or more tables")
+
+
+if __name__ == "__main__":
+    print("Seq Scan" in NodeType)

@@ -32,20 +32,23 @@ class QEPModifier:
 
         for node_id, data in self.graph.nodes(data=True):
             node_type = data.get('node_type', '')
-            node_tables = set(data.get('tables', []))
+
 
             # Check if node matches modification criteria
             if modification.node_type == NodeType.SCAN:
                 # For scan nodes, check if it's a scan on the specified table
+                node_table_aliases = set(data.get('aliases', []))
                 if (node_type == modification.original_type and
-                        node_tables == modification.tables):
+                        len(node_table_aliases.intersection(modification.tables)) == len(modification.tables) ):
                     matching_nodes.append(node_id)
 
             elif modification.node_type == NodeType.JOIN:
-                #print("mod node type:", modification.node_type)
+                # print("mod node type:", modification.node_type)
                 # For join nodes, check if it involves the specified tables
+                node_table_aliases = set(data.get('_join_table_aliases', []))
+                print("node_table_aliases:", node_table_aliases)
                 if (node_type == modification.original_type and
-                        node_tables == modification.tables):
+                        len(node_table_aliases.intersection(modification.tables)) == len(modification.tables)):
                     matching_nodes.append(node_id)
 
         return matching_nodes
@@ -60,7 +63,7 @@ class QEPModifier:
         """
         if not self.graph.has_node(node_id):
             raise ValueError(f"Node with ID {node_id} not found in the QEP Tree")
-        self.graph.nodes[node_id]['node_type'] = new_type
+        nx.set_node_attributes(self.graph, {node_id: {'node_type': new_type}})
 
     def add_modification(self, modification: QueryModification):
         """
@@ -85,7 +88,7 @@ class QEPModifier:
         """
         if not self.modifications:
             pass
-            #raise ValueError("No modifications have been added")
+            # raise ValueError("No modifications have been added")
         else:
             if match_node_by_id:
                 for modification in self.modifications:
@@ -95,24 +98,24 @@ class QEPModifier:
                     matching_nodes = self._find_matching_nodes(modification)
                     for node_id in matching_nodes:
                         self._update_node_type(node_id, modification.new_type)
-
+        self.clear_costs()
         return self.graph
-    
+
     def get_total_cost(self) -> float:
         """
         Calculate the total cost by summing the 'cost' attribute of all nodes in the graph.
-        
+
         Parameters:
         G (networkx.Graph): A NetworkX graph where nodes have a 'cost' attribute
-        
+
         Returns:
         float: The total cost sum across all nodes
-        
+
         Raises:
         KeyError: If any node is missing the 'cost' attribute
         """
         total_cost = 0
-        
+
         # Iterate through all nodes and sum their costs
         for node in self.graph.nodes():
             try:
@@ -120,7 +123,7 @@ class QEPModifier:
                 total_cost += node_cost
             except KeyError:
                 raise KeyError(f"Node {node} is missing the 'cost' attribute")
-                
+
         return total_cost
 
     def reset(self):
@@ -143,8 +146,18 @@ if __name__ == "__main__":
     # 1. Set up the database and get the original query plan
     db_manager = DatabaseManager('TPC-H')
     query = """
-        select * from customer C, orders O where C.c_custkey = O.o_custkey;
-        """
+            select 
+            * 
+        from customer C, orders O, lineitem L, supplier S
+        where C.c_custkey = O.o_custkey 
+          and O.o_orderkey = L.l_orderkey
+          and L.l_suppkey = S.s_suppkey
+          and L.l_quantity > (
+            select avg(L2.l_quantity) 
+            from lineitem L2 
+            where L2.l_suppkey = S.s_suppkey
+          )
+            """
 
     qep_data = db_manager.get_qep(query)
 
@@ -158,7 +171,7 @@ if __name__ == "__main__":
         node_type=NodeType.SCAN,
         original_type=ScanType.SEQ_SCAN.value,
         new_type=ScanType.BITMAP_HEAP_SCAN.value,
-        tables={'customer'},
+        tables={'c'},
         node_id="SOMESTRING"
     )
 
@@ -167,8 +180,8 @@ if __name__ == "__main__":
         node_type=NodeType.JOIN,
         original_type=JoinType.HASH_JOIN.value,
         new_type=JoinType.NESTED_LOOP.value,
-        tables={'customer', 'orders', "lineitem", "supplier"},
-        node_id = "SOMESTRING"
+        tables={'c', 'o', "l", "s"},
+        node_id="SOMESTRING"
     )
 
     # 4. Apply modifications

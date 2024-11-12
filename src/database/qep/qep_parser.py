@@ -1,24 +1,35 @@
-import networkx as nx
-from typing import Dict, Any, Optional, List, Tuple, Set
 import uuid
-from src.database.databaseManager import DatabaseManager
-from src.database.qep.qep_visualizer import QEPVisualizer
-from src.settings.filepaths import VIZ_DIR
+from typing import Dict, List, Set
+
+import networkx as nx
+
+from src.types.qep_types import NodeType, ScanType, JoinType
 
 
 class QEPParser:
     def __init__(self):
         self.graph = nx.DiGraph()
-        self.alias_map = {}  # Map aliases to original table names
+        self.root_node_id = None
+        self.alias_map = {}
+        self.condition_keys = ['Filter', 'Join Filter', 'Hash Cond', 'Recheck Cond', 'Index Cond', 'Merge Cond',
+                               'Cache Key']
+        self.lowest_level = 0
 
-    def reset(self):
-        """Reset the parser state."""
-        self.graph = nx.DiGraph()
-        self.alias_map.clear()
+    @staticmethod
+    def _get_join_table_aliases(join_order_str: str):
+        join_order_str = join_order_str.replace("[", "").replace("]", "")
+        return join_order_str.split(", ")
 
-    def _register_alias(self, alias: str, table_name: str):
-        """Register a table alias."""
-        self.alias_map[alias.lower()] = table_name
+    def _format_join_order_to_string(self, join_order: List) -> str:
+        """Format a list of aliases to a string."""
+        if not isinstance(join_order, list):
+            return str(join_order)
+
+        elements = []
+        for item in join_order:
+            elements.append(self._format_join_order_to_string(item))
+
+        return f"[{', '.join(elements)}]"
 
     def _resolve_table_name(self, identifier: str) -> str:
         """
@@ -27,257 +38,240 @@ class QEPParser:
         """
         return self.alias_map.get(identifier.lower(), identifier)
 
-    def _collect_descendant_tables(self, node_id: str, visited: Set[str] = None) -> Set[str]:
-        """
-        Recursively collect all tables from a node's descendants.
+    def _register_alias(self, alias: str, table_name: str):
+        """Register a table alias."""
+        self.alias_map[alias.lower()] = table_name
 
-        Args:
-            node_id: ID of the current node
-            visited: Set of already visited nodes to prevent cycles
+    def _parse_condition(self, node_type: str):
+        pass
 
-        Returns:
-            Set of table names from all descendants
-        """
-        if visited is None:
-            visited = set()
+    def _extract_aliases_from_condition(self, condition: str) -> Set[str]:
+        """Extract all table aliases from a condition string."""
+        # Extract all words from the condition
+        words = condition.split()
+        aliases = set()
 
-        if node_id in visited:
-            return set()
+        # Check if each word is an alias
+        for word in words:
+            candidate = word.split('.')[0]  # only consider the left side of the dot
+            # Check if the word is a valid alias
+            if candidate.lower() in self.alias_map:
+                aliases.add(candidate.lower())
 
-        visited.add(node_id)
-        tables = set(self.graph.nodes[node_id].get('tables', []))
+        return aliases
 
-        # Recursively collect tables from all descendants
-        for child in self.graph.neighbors(node_id):
-            tables.update(self._collect_descendant_tables(child, visited))
-
-        return tables
-
-    def _process_join_condition(self, condition: str) -> Tuple[set, List[str]]:
-        """
-        Process a join condition to extract and resolve table names and conditions.
-        Returns: (set of table names, list of resolved conditions)
-        eg.: "(c.c_custkey = o.o_custkey)" -> ({"customer", "orders"}, ["customer.c_custkey = orders.o_custkey"])
-        """
-        tables = set()
-        resolved_conditions = []
-        if not condition:
-            return tables, resolved_conditions
-
-        # Split on logical operators (AND, OR) if present
-        conditions = condition.split(' AND ')
-        for cond in conditions:
-            resolved_condition = cond
-            # Split on comparison operators and other delimiters
-            parts = cond.replace('(', ' ').replace(')', ' ').replace('=', ' ').split()
-
-            for part in parts:
-                if '.' in part:
-                    table_alias, column = part.split('.')
-                    resolved_table = self._resolve_table_name(table_alias)
-                    if resolved_table != table_alias:  # Only add if we successfully resolved an alias
-                        tables.add(resolved_table)
-                        # Replace alias with resolved table name in condition
-                        resolved_condition = resolved_condition.replace(
-                            f"{table_alias}.", f"{resolved_table}."
-                        )
-
-            if resolved_condition.strip():
-                resolved_conditions.append(resolved_condition.strip())
-
-        return tables, resolved_conditions
-
-    def _extract_join_info(self, node_data: Dict[str, Any]) -> tuple[set[set], list[str]]:
-        """Extract join tables and conditions from a node."""
-        all_tables = set()
-        all_conditions = []
-
-        # Process various types of join conditions
-        condition_keys = [
-            'Hash Cond',
-            'Join Filter',
-            'Filter',
-            'Index Cond',
-            'Merge Cond',
-            'Recheck Cond'
-        ]
-
-        for key in condition_keys:
-            if key in node_data:
-                tables, conditions = self._process_join_condition(node_data[key])
-                all_tables.update(tables)
-                all_conditions.extend(conditions)
-
-        return all_tables, all_conditions
-
-    def _extract_tables(self, node_data: Dict[str, Any]) -> Tuple[Set[str], List[str]]:
-        """Extract and resolve all table names and conditions from a node."""
-        tables = set()
-        conditions = []
-
-        # Handle direct table references
-        if 'Relation Name' in node_data:
-            table_name = node_data['Relation Name']
-            alias = node_data.get('Alias', table_name)
-            self._register_alias(alias, table_name)
-            tables.add(table_name)
-
-        # Process join conditions
-        join_tables, join_conditions = self._extract_join_info(node_data)
-        tables.update(join_tables)
-        conditions.extend(join_conditions)
-
-        return tables, conditions
-
-    def _parse_node(self, node_data: Dict[str, Any], parent_id: Optional[str] = None, is_root: bool = False) -> str:
+    def _parse_node(self, node_data: Dict, node_level: int, parent_node_id: str = None) -> str:
+        """Parse a single node in the QEP data."""
+        # Setup node data first
         """Parse a single node and its children."""
         node_id = str(uuid.uuid4())
         tables = set()
-        conditions = []
+        aliases = set()
+        try:
+            node_type = node_data['Node Type']
+        except KeyError:
+            print(node_data)
+            raise ValueError("Node Type not found in node data: \n{}".format(node_data))
 
-        # Process children first to ensure all aliases are registered
-        child_nodes = []
-        if 'Plans' in node_data:
-            for child_plan in node_data['Plans']:
-                child_id = self._parse_node(child_plan, node_id, is_root=False)
-                child_nodes.append(child_id)
+        # Keep track of lowest level for bottom-up traversal later
+        if node_level > self.lowest_level:
+            self.lowest_level = node_level
 
-        # Extract tables and conditions based on node type
-        node_type = node_data.get('Node Type', '')
+        # Register aliases if it's a scan node
+        if node_type in ScanType:
+            if 'Alias' in node_data:
+                # wrapped in if block to handle the edge case of BitMap Index Scan not having an alias attribute
+                alias = node_data['Alias']
+                self._register_alias(alias, node_data['Relation Name'])
+                aliases.add(alias)
 
-        if 'Join' in node_type or node_type == 'Nested Loop':
-            # First get the immediate tables and conditions from this node
-            node_tables, node_conditions = self._extract_join_info(node_data)
-            tables.update(node_tables)
-            conditions.extend(node_conditions)
-
-            # Then collect all tables from descendants for join nodes
-            for child_id in child_nodes:
-                descendant_tables = self._collect_descendant_tables(child_id)
-                tables.update(descendant_tables)
-        else:
-            # For non-join nodes, extract tables and conditions normally
-            node_tables, node_conditions = self._extract_tables(node_data)
-            tables.update(node_tables)
-            conditions.extend(node_conditions)
+        # Node is root if it does not have a parent
+        is_root = False
+        if parent_node_id is None:
+            is_root = True
+            self.root_node_id = node_id
 
         node_attrs = {
             'node_type': node_type,
-            'tables': sorted(tables),  # Sort for consistent ordering
-            'cost': node_data.get('Total Cost', 0.0),
+            'tables': tables,
+            'cost': node_data.get('Total Cost', -1.0),
             'is_root': is_root,
-            'conditions': conditions
+            'aliases': aliases,
+            '_node_level': node_level
         }
+
+        # Get Conditions
+        for key in self.condition_keys:
+            if key in node_data:
+                if "Cond" in key:
+                    key.replace("Cond", "On")
+                node_attrs[key] = node_data[key]
+
+                # Only extract aliases if it's not a scan node
+                if node_type not in ScanType:
+                    node_attrs['aliases'].update(self._extract_aliases_from_condition(node_data[key]))
 
         # Add node to graph
         self.graph.add_node(node_id, **node_attrs)
 
-        # Connect to parent if exists
-        if parent_id is not None:
-            self.graph.add_edge(parent_id, node_id)
+        # Connect to parent if not root
+        if parent_node_id is not None:
+            self.graph.add_edge(parent_node_id, node_id)
+
+        # Recursively parse children
+        if 'Plans' in node_data:
+            for child_node_data in node_data['Plans']:
+                self._parse_node(child_node_data, node_level + 1, node_id)
 
         return node_id
 
-    def parse(self, qep_data: List) -> nx.DiGraph:
-        """Parse the QEP data into a graph."""
-        self.reset()
+    @staticmethod
+    def _extract_plan(plan: List) -> Dict:
+        """Extract the plan data from the nested list(s)."""
+        while True:
+            if not plan:
+                raise RuntimeError("No plan found")
 
-        if isinstance(qep_data, list) and len(qep_data) > 0:
-            if isinstance(qep_data[0], tuple) and len(qep_data[0]) > 0:
-                if isinstance(qep_data[0][0], list) and len(qep_data[0][0]) > 0:
-                    root_plan = qep_data[0][0][0].get('Plan', {})
-                    self._parse_node(root_plan, parent_id=None, is_root=True)
+            # Incrementally traverse deeper into the nested List structure with each iteration of the while loop
+            plan = plan[0]
+
+            # Return object if it's a dictionary (that means we have found the plan)
+            if type(plan) == dict and 'Plan' in plan.keys():
+                return plan['Plan']
+
+    def _get_nodes_by_level(self, node_level: int) -> List:
+        return [node_id for (node_id, node_data) in self.graph.nodes(data=True) if
+                node_data['_node_level'] == node_level]
+
+    def _get_join_order(self) -> Dict:
+        join_order = {}  # {node_id: {'join_order': [alias, alias, alias]}, node_id: {'join_order': [alias, alias, alias]}}
+        # Start from the lowest level, travel upwards breadth-first
+        # print("lowest level:", self.lowest_level)
+        for node_level in range(self.lowest_level, -1, -1):
+            # print("processing for node_level:", node_level)
+            nodes = self._get_nodes_by_level(node_level)
+            for node_id in nodes:
+                node_data = self.graph.nodes(data=True)[node_id]
+                if not ("Join" in node_data['node_type'] or node_data['node_type'] == "Nested Loop"):
+                    print(f"processing {node_data['node_type']} on {node_data['aliases']}")
+                    # If it's not a join node, copy the join order from the child OR initialize from aliases attribute
+                    children = list(self.graph.successors(node_id))
+                    if len(children) > 1:
+                        raise ValueError("Non-join node has more than one child:\n {}".format(node_data))
+                    else:
+                        if len(children) > 0:  # is not leaf, so copy from child, unless child's alias is empty
+                            for child in children:
+                                child_join_order = join_order[child]['_join_order']
+                                print("child_join_order:", child_join_order)
+                                if len(child_join_order) > 0:  # if child has join order, copy it
+                                    print(
+                                        f"Processing node type {node_data['node_type']} on {node_data['aliases']} from non leaf, child has join order")
+                                    # if child has only one alias, unpack it
+                                    if len(child_join_order) == 1:
+                                        child_join_order = next(iter(child_join_order))
+                                    join_order[node_id] = {'_join_order': child_join_order}
+                                else:  # if child has no join order, initialize from aliases (to handle edge case of BitMap Index Scan not having alias attribute)x
+                                    aliases = node_data['aliases']
+                                    # if node has only one alias, unpack it
+                                    if len(aliases) == 1:
+                                        aliases = next(iter(aliases))
+                                    join_order[node_id] = {'_join_order': aliases}
+                                    print(
+                                        f"Processing node type {node_data['node_type']} on {node_data['aliases']} from non leaf, child doesn't have join order")
+                        else:  # is leaf, so initialize from aliases
+                            print(
+                                f"Processing node type {node_data['node_type']} on {node_data['aliases']} from leaf")
+                            join_order[node_id] = {'_join_order': node_data['aliases']}
+
+                else:  # is a join node, thus we need to merge the join orders of the children
+                    print(
+                        f"Processing node type {node_data['node_type']} on {node_data['aliases']}")
+                    children = self.graph.successors(node_id)
+                    current_node_order = []
+                    for child in children:
+                        child_join_order = join_order[child]['_join_order']
+                        # if child has only one alias, unpack it
+                        if len(child_join_order) == 1:
+                            child_join_order = next(iter(child_join_order))
+                        current_node_order.append(child_join_order)
+                    join_order[node_id] = {'_join_order': current_node_order}
+                print(
+                    f"Join order for node type {node_data['node_type']} on {node_data['aliases']} is {join_order[node_id]['_join_order']}")
+        return join_order
+
+    def parse(self, qep_data: List) -> nx.DiGraph:
+        """Parse the QEP data into a networkX graph."""
+        self.graph.clear()
+
+        plan = self._extract_plan(qep_data)
+
+        # Parse the root node, the parse_node function will recursively be called
+        self._parse_node(plan, node_level=0, parent_node_id=None)
+
+        # Resolve table names for aliases used:
+        for node_id, data in self.graph.nodes(data=True):
+            if data['node_type'] in ScanType:
+                print(data)
+                table_names = [self._resolve_table_name(alias) for alias in data['aliases']]
+                nx.set_node_attributes(self.graph, {node_id: {'tables': set(table_names)}})
+
+        # Get Join Order
+        join_order_dict = self._get_join_order()
+
+        # Set join order as node attribute
+        nx.set_node_attributes(self.graph, join_order_dict)
+
+        # Get Join Order String
+        join_order_str_dict = {}
+        for node_id in join_order_dict:
+            join_order = join_order_dict[node_id]['_join_order']
+            if type(join_order) == list and len(join_order) > 1:
+                print("debug join order str:", join_order_dict[node_id]['_join_order'])
+                join_order_str_dict[node_id] = {'join_order': self._format_join_order_to_string(join_order)}
+
+        # Set join order string as graph attribute
+        nx.set_node_attributes(self.graph, join_order_str_dict)
+
+        # Get join table aliases
+        join_table_aliases = {}
+        for node_id in join_order_str_dict:
+            join_order_str = join_order_str_dict[node_id]['join_order']
+            join_table_aliases[node_id] = {'_join_table_aliases': self._get_join_table_aliases(join_order_str)}
+
+        # Set join table aliases as node attribute
+        nx.set_node_attributes(self.graph, join_table_aliases)
 
         return self.graph
-    
-    def get_total_cost(self) -> float:
-        """
-        Calculate the total cost by summing the 'cost' attribute of all nodes in the graph.
-        
-        Parameters:
-        G (networkx.Graph): A NetworkX graph where nodes have a 'cost' attribute
-        
-        Returns:
-        float: The total cost sum across all nodes
-        
-        Raises:
-        KeyError: If any node is missing the 'cost' attribute
-        """
-        total_cost = 0
-        
-        # Iterate through all nodes and sum their costs
-        for node in self.graph.nodes():
-            try:
-                node_cost = self.graph.nodes[node]['cost']
-                total_cost += node_cost
-            except KeyError:
-                raise KeyError(f"Node {node} is missing the 'cost' attribute")
-                
-        return total_cost
-
-    def print_nodes(self):
-        """Print all nodes and their attributes in a hierarchical format."""
-        def get_node_level(node):
-            root = [n for n, d in self.graph.nodes(data=True) if d.get('is_root', False)][0]
-            try:
-                return nx.shortest_path_length(self.graph, root, node)
-            except:
-                return 0
-
-        nodes = list(self.graph.nodes(data=True))
-        nodes.sort(key=lambda x: get_node_level(x[0]))
-
-        print("\nQuery Execution Plan Node Details:")
-        print("=" * 50)
-
-        for node_id, attrs in nodes:
-            level = get_node_level(node_id)
-            indent = "  " * level
-
-            print(f"\n{indent}Node Level {level}:")
-            print(f"{indent}{'─' * 20}")
-            print(f"{indent}Type: {attrs['node_type']}")
-            print(f"{indent}Cost: {attrs['cost']:.2f}")
-            print(f"{indent}Tables: {', '.join(attrs['tables']) if attrs['tables'] else 'None'}")
-            print(f"{indent}Is Root: {attrs['is_root']}")
-            if attrs['conditions']:
-                print(f"{indent}Conditions: {', '.join(attrs['conditions'])}")
-
 
 
 if __name__ == "__main__":
-    db_manager = DatabaseManager('TPC-H')
-    #res = db_manager.get_qep("select * from customer C, orders O where C.c_custkey = O.o_custkey")
-    #res = db_manager.get_qep("select * from customer C, orders O where C.c_custkey = O.o_custkey")
-    #query = """
-    #    select * from customer C, orders O where C.c_custkey = O.o_custkey;
-    #    """
-    query = """
-    select 
-    /*+ Leading( ( ( (l s) o) c) )  NestLoop( c o l s) HashJoin( l s ) HashJoin( l o ) BitmapScan(c) */
-    * 
-from customer C, orders O, lineitem L, supplier S
-where C.c_custkey = O.o_custkey 
-  and O.o_orderkey = L.l_orderkey
-  and L.l_suppkey = S.s_suppkey
-  and L.l_quantity > (
-    select avg(L2.l_quantity) 
-    from lineitem L2 
-    where L2.l_suppkey = S.s_suppkey
-  )
-    """
-    #query = """
-    #select
-    #/*+ Leading( ( ( (l s) o) c) )  NestLoop( c o l s) HashJoin( l s ) HashJoin( l o ) BitmapScan(c) */
-    #* from customer c
-    #join orders o on (c.c_custkey = o.o_custkey)
-    #join lineitem l on (o.o_orderkey = l.l_orderkey)
-    #join supplier s on (l.l_suppkey = s.s_suppkey);"""
-    res = db_manager.get_qep(query)
+    from src.database.qep.qep_visualizer import QEPVisualizer
+    from src.settings.filepaths import VIZ_DIR
+    from src.database.databaseManager import DatabaseManager
 
-    q = QEPParser()
-    tree = q.parse(res)
-    VIZ_DIR.mkdir(parents=True, exist_ok=True)
-    QEPVisualizer(tree).visualize(VIZ_DIR / "qep_tree.png")
-    q.print_nodes()
-    #q.visualize(VIZ_DIR / "qep_tree.png")
+    # 1. Set up the database and get the original query plan
+    db_manager = DatabaseManager('TPC-H')
+    query = """
+        select 
+        /*+ Leading( ( ( (l s) o) c) )  BitmapScan(c) */
+        * 
+    from customer C, orders O, lineitem L, supplier S
+    where C.c_custkey = O.o_custkey 
+      and O.o_orderkey = L.l_orderkey
+      and L.l_suppkey = S.s_suppkey
+      and L.l_quantity > (
+        select avg(L2.l_quantity) 
+        from lineitem L2 
+        where L2.l_suppkey = S.s_suppkey
+      )
+        """
+
+    qep_data = db_manager.get_qep(query)
+
+    # 2. Parse the original plan
+    parser = QEPParser()
+    original_graph = parser.parse(qep_data)
+
+    # 3. Visualize the original plan
+    QEPVisualizer(original_graph).visualize(VIZ_DIR / "original_qep.png")
+

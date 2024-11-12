@@ -82,25 +82,46 @@ class QEPVisualizer:
 
         return pos
 
-    def _format_conditions(self, conditions: list) -> str:
-        """Format conditions for display with proper wrapping."""
-        if not conditions:
-            return ""
+    def _format_value(self, value) -> str:
+        """Format a value for display, handling different types appropriately."""
+        if isinstance(value, (list, set)):
+            return ', '.join(str(v) for v in value)
+        elif isinstance(value, float):
+            return f"{value:.2f}"
+        elif isinstance(value, (dict, tuple)):
+            return str(value)
+        return str(value)
 
-        # Join conditions with AND and wrap at 30 characters
-        conditions_text = " AND ".join(conditions)
-        wrapped_conditions = wrap(conditions_text, width=30)
-        return "\n".join(wrapped_conditions)
+    def _format_node_attributes(self, attributes: dict) -> str:
+        """Format all node attributes except those starting with '_' and node_type."""
+        formatted_attrs = []
+
+        # Get node type first (it will be displayed separately)
+        node_type = attributes.get('node_type', 'Unknown')
+
+        # Format remaining attributes
+        for key, value in sorted(attributes.items()):
+            # Skip private attributes and node_type
+            if not key.startswith('_') and key != 'node_type':
+                formatted_value = self._format_value(value)
+                if formatted_value:  # Only include non-empty values
+                    formatted_line = f"{key}: {formatted_value}"
+                    # Wrap long lines
+                    wrapped_lines = wrap(formatted_line, width=30)
+                    formatted_attrs.extend(wrapped_lines)
+
+        # Combine node type and other attributes
+        return f"{node_type}\n" + ('-' * 20) + '\n' + '\n'.join(formatted_attrs)
 
     def visualize(self, output_file: str = 'qep_tree.png'):
         """
         Visualize the simplified query plan tree and save it to a file.
-        Shows node type, cost, tables involved, and join conditions.
+        Shows node type as title, followed by all other non-private attributes.
 
         Args:
             output_file: Path where the visualization should be saved
         """
-        # Increase figure size to accommodate conditions
+        # Increase figure size to accommodate attributes
         plt.figure(figsize=(20, 15))
 
         # Find root node (node with is_root=True)
@@ -114,7 +135,7 @@ class QEPVisualizer:
         non_root_nodes = [n for n, d in self.graph.nodes(data=True) if not d.get('is_root', False)]
 
         # Increase node size to accommodate more text
-        node_size = 4000
+        node_size = 5000
 
         # Draw root node in a different color
         nx.draw_networkx_nodes(self.graph, pos,
@@ -136,27 +157,11 @@ class QEPVisualizer:
                                arrows=True,
                                arrowsize=20)
 
-        # Create labels with conditions
-        labels = {}
-        for node, data in self.graph.nodes(data=True):
-            label_parts = [f"{data['node_type']}"]
-
-            # Only add cost if it's not -1
-            if 'cost' in data and data['cost'] != -1:
-                label_parts.append(f"Cost: {data['cost']:.2f}")
-
-            # Add tables if present
-            if data['tables']:
-                label_parts.append(f"Tables: {', '.join(data['tables'])}")
-            else:
-                label_parts.append("No tables")
-
-            # Add conditions if present
-            if 'conditions' in data and data['conditions']:
-                conditions_text = self._format_conditions(data['conditions'])
-                label_parts.append(f"Conditions:\n{conditions_text}")
-
-            labels[node] = '\n'.join(label_parts)
+        # Create labels with all attributes
+        labels = {
+            node: self._format_node_attributes(data)
+            for node, data in self.graph.nodes(data=True)
+        }
 
         # Add labels with smaller font size and better wrapping
         nx.draw_networkx_labels(self.graph, pos,
