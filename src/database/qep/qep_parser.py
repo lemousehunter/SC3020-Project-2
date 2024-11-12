@@ -16,7 +16,7 @@ class QEPParser:
         self.lowest_level = 0
 
     @staticmethod
-    def _get_join_table_aliases(join_order_str: str):
+    def _get_join_order_aliases(join_order_str: str):
         join_order_str = join_order_str.replace("[", "").replace("]", "")
         return join_order_str.split(", ")
 
@@ -73,6 +73,12 @@ class QEPParser:
             print(node_data)
             raise ValueError("Node Type not found in node data: \n{}".format(node_data))
 
+        # Check if node is part of subquery
+        if 'Subplan Name' in node_data:
+            subplan_status = True
+        else:
+            subplan_status = False
+
         # Keep track of lowest level for bottom-up traversal later
         if node_level > self.lowest_level:
             self.lowest_level = node_level
@@ -97,7 +103,8 @@ class QEPParser:
             'cost': node_data.get('Total Cost', -1.0),
             'is_root': is_root,
             'aliases': aliases,
-            '_node_level': node_level
+            '_node_level': node_level,
+            '_subplan': subplan_status,
         }
 
         # Get Conditions
@@ -189,6 +196,9 @@ class QEPParser:
                     children = self.graph.successors(node_id)
                     current_node_order = []
                     for child in children:
+                        # check if child is a subplan node, if yes ignore that as pg_hint_plan does not support subplan table aliasing
+                        if self.graph.nodes(data=True)[child]['_subplan']:
+                            continue
                         child_join_order = join_order[child]['_join_order']
                         # if child has only one alias, unpack it
                         if len(child_join_order) == 1:
@@ -236,7 +246,7 @@ class QEPParser:
         join_table_aliases = {}
         for node_id in join_order_str_dict:
             join_order_str = join_order_str_dict[node_id]['join_order']
-            join_table_aliases[node_id] = {'_join_table_aliases': self._get_join_table_aliases(join_order_str)}
+            join_table_aliases[node_id] = {'_join_table_aliases': self._get_join_order_aliases(join_order_str)}
 
         # Set join table aliases as node attribute
         nx.set_node_attributes(self.graph, join_table_aliases)
@@ -253,7 +263,7 @@ if __name__ == "__main__":
     db_manager = DatabaseManager('TPC-H')
     query = """
         select 
-        /*+ Leading( ( ( (l s) o) c) )  BitmapScan(c) */
+        /*+ Leading( ( ( (l2 l s) o) c) ) */
         * 
     from customer C, orders O, lineitem L, supplier S
     where C.c_custkey = O.o_custkey 
