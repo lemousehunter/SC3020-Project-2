@@ -326,37 +326,10 @@ class QEPModifier:
             for join_order, node_id in self.join_order:
                 node_data = self.graph.nodes(True)[node]
                 node_join_order = node_data.get('_join_order')
-                """if type(node_join_order) == set:
-                    if len(node_join_order) == 1:
-                        node_join_order = next(iter(node_join_order))
-                    else:
-                        node_join_order = list(node_join_order)"""
                 print("node_join_order:", node_join_order)
                 if node_join_order in join_order:
                     self.graph.add_edge(node_id, node)
                     break
-
-        """# Tag the subquery node near another non-scan node that has the same table (join order, map from alias to get table):
-        # Check the join node's join order: if similar non-scan node is the left table (outer), tag the subquery node under the join.
-        # If the similar non-scan node is the inner table, tag the subquery node under the leaf node of that similar node
-
-        # Get list of subquery nodes
-        subquery_nodes = [node for node, data in self.graph.nodes(data=True) if data.get('_subplan')]
-
-        for subquery_node in subquery_nodes:
-            # Get subquery node join order
-            subquery_node_data = self.graph.nodes(True)[subquery_node]
-            subquery_node_join_order = subquery_node_data.get('_join_order')
-            table_name = self.alias_map[subquery_node_data['aliases'][0]]
-
-            # Get the join node's join order
-            for join_order, node_id in self.join_order:
-                join_node_data = self.graph.nodes(True)[node_id]
-                join_node_join_order = join_node_data.get('_join_order')
-                if join_node_join_order == subquery_node_join_order:"""
-
-
-
 
 
     def apply_modifications(self, match_node_by_id: bool = True) -> nx.DiGraph:
