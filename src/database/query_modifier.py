@@ -41,7 +41,7 @@ where C.c_custkey = O.o_custkey
 
     # 2. Parse the original plan
     parser = QEPParser()
-    original_graph: nx.DiGraph = parser.parse(qep_data)
+    original_graph, ordered_join_pairs = parser.parse(qep_data)
     QEPVisualizer(original_graph).visualize(VIZ_DIR / "original_qep.png")
 
     # 3. Create modifications
@@ -50,7 +50,7 @@ where C.c_custkey = O.o_custkey
         node_type=NodeType.SCAN,
         original_type=ScanType.SEQ_SCAN.value,
         new_type=ScanType.BITMAP_HEAP_SCAN.value,
-        tables={'customer'},
+        tables={'c'},
         node_id="SOMESTRING"
     )
 
@@ -59,12 +59,12 @@ where C.c_custkey = O.o_custkey
         node_type=NodeType.JOIN,
         original_type=JoinType.HASH_JOIN.value,
         new_type=JoinType.NESTED_LOOP.value,
-        tables={'customer', 'orders', "lineitem", "supplier"},
+        tables={'c', 'o', "l", "s"},
         node_id="SOMESTRING"
     )
 
     # 4. Apply modifications
-    modifier = QEPModifier(original_graph)
+    modifier = QEPModifier(original_graph, ordered_join_pairs)
     modifier.add_modification(scan_modification)
     modifier.add_modification(join_modification)
 
@@ -91,7 +91,7 @@ where C.c_custkey = O.o_custkey
     QEPVisualizer(modified_graph).visualize(VIZ_DIR / "modified_pre-explained_qep_tree.png")
 
     # 5 Generate Hint
-    hint = HintConstructor(modified_graph).generate_hints(query)
+    hint, hint_lst = HintConstructor(modified_graph).generate_hints()
     print(hint)
 
     # 6 Modify Query (pre-pend hint)
@@ -104,6 +104,6 @@ where C.c_custkey = O.o_custkey
     # 7. Visualize the modified graph
     res = db_manager.get_qep(modified_query)
     q = QEPParser()
-    tree = q.parse(res)
+    tree, new_ordered_join_pairs = q.parse(res)
     VIZ_DIR.mkdir(parents=True, exist_ok=True)
     QEPVisualizer(tree).visualize(VIZ_DIR / "modified_explained_qep_tree.png")
