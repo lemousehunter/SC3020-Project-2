@@ -11,7 +11,7 @@ class QEPParser:
     def __init__(self):
         self.graph = nx.DiGraph()
         self.root_node_id = None
-        self.alias_map = {}
+        self.alias_map = {}  # alias: table_name
         self.condition_keys = ['Filter', 'Join Filter', 'Hash Cond', 'Recheck Cond', 'Index Cond', 'Merge Cond',
                                'Cache Key']
         self.lowest_level = 0
@@ -67,12 +67,12 @@ class QEPParser:
                     print("aliases:", self._extract_aliases_from_condition(node_data[attribute]))
                     return tuple(self._extract_aliases_from_condition(node_data[attribute]))
 
-    def _get_join_pairings_in_order(self) -> Tuple[List[Tuple[str, str]], Dict]:
+    def _get_join_pairings_in_order(self) -> Tuple[List[Tuple[Tuple[str, str], str]], Dict]:
         # incrementally parse each join node from bottom up (and left to right, each level will be a list) to get join pairings
         # Start from the lowest level, travel upwards breadth-first
         # print("lowest level:", self.lowest_level)
         ordered_join_pairs = []
-        relation_aliases = {}  # {node_id: {'join_on': (alias, alias)}}
+        ordered_join_pairings_d = {}  # {node_id: {'join_on': (alias, alias)}}
         for node_level in range(self.lowest_level, -1, -1):
             # print("processing for node_level:", node_level)
             nodes = self._get_nodes_by_level(node_level)
@@ -82,16 +82,17 @@ class QEPParser:
                     join_pair = self._get_single_join_pair(node_id)
                     print("_join_table_aliases:", node_data['_join_table_aliases'])
                     print("nested loop join pair:", join_pair)
-                    _join_table_aliases = node_data['_join_table_aliases']
-                    left = join_pair[0]
-
-                    if left != _join_table_aliases[0]: # left of pair is not actually left table in order
+                    _join_order = node_data['_join_order']
+                    right = join_pair[-1]
+                    print("_join_table_aliases:", _join_order)
+                    if right != _join_order[-1]: # right of pair is not actually right table in order
                         join_pair = (join_pair[1], join_pair[0]) # thus switch it
+                        print("switched join pair:", join_pair)
 
-                    relation_aliases[node_id] = {'join_on': join_pair}
+                    ordered_join_pairings_d[node_id] = {'join_on': join_pair}
 
-                    ordered_join_pairs.append(join_pair)
-        return ordered_join_pairs, relation_aliases
+                    ordered_join_pairs.append((join_pair, node_id))
+        return ordered_join_pairs, ordered_join_pairings_d
 
     @staticmethod
     def _get_join_order_aliases(join_order_str: str):
@@ -119,9 +120,6 @@ class QEPParser:
     def _register_alias(self, alias: str, table_name: str):
         """Register a table alias."""
         self.alias_map[alias.lower()] = table_name
-
-    def _parse_condition(self, node_type: str):
-        pass
 
     def _extract_aliases_from_condition(self, condition: str) -> Set[str]:
         """Extract all table aliases from a condition string."""
@@ -269,7 +267,11 @@ class QEPParser:
                         else:  # is leaf, so initialize from aliases
                             print(
                                 f"Processing node type {node_data['node_type']} on {node_data['aliases']} from leaf")
-                            join_order[node_id] = {'_join_order': node_data['aliases']}
+                            aliases = node_data['aliases']
+                            # if node has only one alias, unpack it
+                            if len(aliases) == 1:
+                                aliases = next(iter(aliases))
+                            join_order[node_id] = {'_join_order': aliases}
 
                 else:  # is a join node, thus we need to merge the join orders of the children
                     print(
@@ -290,7 +292,7 @@ class QEPParser:
                     f"Join order for node type {node_data['node_type']} on {node_data['aliases']} is {join_order[node_id]['_join_order']}")
         return join_order
 
-    def parse(self, qep_data: List) -> Tuple[nx.DiGraph, List]:
+    def parse(self, qep_data: List) -> Tuple[nx.DiGraph, List, Dict[str, str]]:
         """Parse the QEP data into a networkX graph."""
         self.graph.clear()
 
@@ -340,7 +342,7 @@ class QEPParser:
 
         print("ordered_join_pairs:", ordered_join_pairs)
 
-        return self.graph, ordered_join_pairs
+        return self.graph, ordered_join_pairs, self.alias_map
 
 
 if __name__ == "__main__":

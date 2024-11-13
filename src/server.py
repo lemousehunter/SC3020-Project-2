@@ -8,7 +8,7 @@ from src.database.databaseManager import DatabaseManager
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_modifier import QEPModifier
 from src.database.query_modifier import QueryModifier
-from src.types.qep_types import QueryModification
+from src.types.qep_types import TypeModification
 from src.database.hint_generator import HintConstructor
 
 
@@ -42,7 +42,7 @@ class QueryPlanManager:
 
         # Process modifications
         for mod in modifications:
-            query_mod = QueryModification(
+            query_mod = TypeModification(
                 node_type=mod.get('node_type'),
                 original_type=mod.get('original_type'),
                 new_type=mod.get('new_type'),

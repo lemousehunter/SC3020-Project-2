@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum, auto, EnumMeta
-from typing import Set
+from typing import Set, Tuple
 
 
 class MetaEnum(EnumMeta):
@@ -39,7 +39,7 @@ class NodeType(BaseEnum):
 
 
 @dataclass
-class QueryModification:
+class TypeModification:
     node_type: NodeType
     original_type: str  # Original scan or join type
     new_type: str  # New scan or join type
@@ -52,6 +52,32 @@ class QueryModification:
             raise ValueError("Scan modifications must specify exactly one table")
         if self.node_type == NodeType.JOIN and len(self.tables) < 2:
             raise ValueError("Join modifications must specify 2 or more tables")
+
+
+@dataclass
+class JoinOrderModificationSpecced:
+    # Join order modification with specified join types and orders to identify nodes involved
+    join_order_1: Tuple[str, str]
+    join_type_1: str
+    join_order_2: Tuple[str, str]
+    join_type_2: str
+
+    def __post_init__(self):
+        # Validate join types:
+        if self.join_type_1 not in JoinType:
+            if self.join_type_2 not in JoinType:
+                raise ValueError(f"Invalid join type: {self.join_type_1} and {self.join_type_2}")
+            else:
+                raise ValueError(f"Invalid join type: {self.join_type_1}")
+        elif self.join_type_2 not in JoinType:
+            raise ValueError(f"Invalid join type: {self.join_type_2}")
+
+
+@dataclass
+class JoinOrderModification:
+    # Join order modification with node id
+    join_order_1_id: str
+    join_order_2_id: str
 
 
 if __name__ == "__main__":

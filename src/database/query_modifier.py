@@ -14,12 +14,12 @@ class QueryModifier:
 
 
 if __name__ == "__main__":
-    from src.database.qep.qep_modifier import QEPModifier, JoinType, NodeType, QueryModification, ScanType
+    from src.database.qep.qep_modifier import QEPModifier, JoinType, NodeType, TypeModification, ScanType
     from src.database.qep.qep_parser import QEPParser
     from src.database.qep.qep_visualizer import QEPVisualizer
     from src.settings.filepaths import VIZ_DIR
     from src.database.databaseManager import DatabaseManager
-    from src.types.qep_types import NodeType, ScanType, JoinType
+    from src.types.qep_types import NodeType, ScanType, JoinType, JoinOrderModificationSpecced
     from src.database.hint_generator import HintConstructor
 
     # 1. Set up the database and get the original query plan
@@ -41,12 +41,12 @@ where C.c_custkey = O.o_custkey
 
     # 2. Parse the original plan
     parser = QEPParser()
-    original_graph, ordered_join_pairs = parser.parse(qep_data)
+    original_graph, ordered_join_pairs, alias_map = parser.parse(qep_data)
     QEPVisualizer(original_graph).visualize(VIZ_DIR / "original_qep.png")
 
     # 3. Create modifications
-    # Change the sequential scan on customer table to a bitmap index scan
-    scan_modification = QueryModification(
+    # Change the sequential scan on customer table to an index scan
+    scan_modification = TypeModification(
         node_type=NodeType.SCAN,
         original_type=ScanType.SEQ_SCAN.value,
         new_type=ScanType.BITMAP_HEAP_SCAN.value,
@@ -55,7 +55,7 @@ where C.c_custkey = O.o_custkey
     )
 
     # Change the nested loop join to a hash join
-    join_modification = QueryModification(
+    join_modification = TypeModification(
         node_type=NodeType.JOIN,
         original_type=JoinType.HASH_JOIN.value,
         new_type=JoinType.NESTED_LOOP.value,
@@ -63,10 +63,19 @@ where C.c_custkey = O.o_custkey
         node_id="SOMESTRING"
     )
 
+    # Change the join order of two joins
+    join_order_modification = JoinOrderModificationSpecced(
+        join_order_1=('o', 'c'),
+        join_type_1=JoinType.NESTED_LOOP.value,
+        join_order_2=('l', 's'),
+        join_type_2=JoinType.HASH_JOIN.value
+    )
+
     # 4. Apply modifications
-    modifier = QEPModifier(original_graph, ordered_join_pairs)
+    modifier = QEPModifier(original_graph, ordered_join_pairs, alias_map)
     modifier.add_modification(scan_modification)
     modifier.add_modification(join_modification)
+    modifier.add_modification(join_order_modification)
 
     example_modification_request = {
         'modifications': [
@@ -104,6 +113,6 @@ where C.c_custkey = O.o_custkey
     # 7. Visualize the modified graph
     res = db_manager.get_qep(modified_query)
     q = QEPParser()
-    tree, new_ordered_join_pairs = q.parse(res)
+    tree, new_ordered_join_pairs, new_alias_map = q.parse(res)
     VIZ_DIR.mkdir(parents=True, exist_ok=True)
     QEPVisualizer(tree).visualize(VIZ_DIR / "modified_explained_qep_tree.png")
