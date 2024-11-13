@@ -1,10 +1,11 @@
 import uuid
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 
 import networkx as nx
+from networkx.algorithms.dag import descendants
 
 from src.types.qep_types import NodeType, ScanType, JoinType
-
+import re
 
 class QEPParser:
     def __init__(self):
@@ -14,6 +15,83 @@ class QEPParser:
         self.condition_keys = ['Filter', 'Join Filter', 'Hash Cond', 'Recheck Cond', 'Index Cond', 'Merge Cond',
                                'Cache Key']
         self.lowest_level = 0
+
+    def _get_single_join_pair(self, node_id: str) -> Tuple[str, str]:
+        node_data = self.graph.nodes(data=True)[node_id]
+        condition_found = False
+        if node_data['node_type'] == "Nested Loop":
+            children = self.graph.successors(node_id)
+            # if nested loop, get join pair from condition of child node that is not a join
+            for child in children:
+                child_node_data = self.graph.nodes(data=True)[child]
+                if "Join" not in child_node_data['node_type'] and child_node_data['node_type'] != "Nested Loop":
+                    print("child type:", child_node_data['node_type'])
+                    for attribute in self.condition_keys:
+                        if attribute in child_node_data and attribute != "Join Filter" and attribute != 'Cache Key':
+                            condition_aliases = self._extract_aliases_from_condition(child_node_data[attribute])
+                            print("attribute:", attribute)
+                            print("nested loop join condition:", child_node_data[attribute])
+                            print("condition_aliases:", condition_aliases)
+                            if len(condition_aliases) > 1:
+                                condition_found = True
+                                return tuple(self._extract_aliases_from_condition(child_node_data[attribute]))
+
+            if not condition_found:
+                # if condition still not found, check its non join descendants:
+                print("current node type:", self.graph.nodes(True)[node_id]['node_type'])
+                print("current join order:", self.graph.nodes(True)[node_id]['join_order'])
+                for child in self.graph.successors(node_id):
+                    # make sure child is non join before proceeding
+                    if not ("Join" in self.graph.nodes(data=True)[child]['node_type'] or self.graph.nodes(data=True)[child]['node_type'] == "Nested Loop"):
+                        print("child type:", self.graph.nodes(data=True)[child]['node_type'])
+                        descendants = nx.descendants(self.graph, child)
+                        for descendant in descendants: # check its descendants
+                            print("descendant type:", self.graph.nodes(data=True)[descendant]['node_type'])
+                            descendant_node_data = self.graph.nodes(data=True)[descendant]
+                            for attribute in self.condition_keys: # get condition from descendants
+                                if attribute in descendant_node_data and attribute != "Join Filter" and attribute != 'Cache Key':
+                                    condition_aliases = set(self._extract_aliases_from_condition(descendant_node_data[attribute]))
+                                    condition_aliases = condition_aliases.union(descendant_node_data['aliases']) # add aliases of descendant node
+                                    if len(condition_aliases) > 1: # if condition has more than one alias, return it
+                                        print("non join descendant join condition:", descendant_node_data[attribute])
+                                        print("aliases:", condition_aliases)
+                                    else:
+                                        continue
+                                    return tuple(condition_aliases)
+
+        # if not nested loop, can get join tables (alias) from join condition ( ___ Cond)
+        else:
+            for attribute in self.condition_keys:
+                if attribute != "Join Filter" and attribute in node_data:
+                    print("non nested loop join condition:", node_data[attribute])
+                    print("aliases:", self._extract_aliases_from_condition(node_data[attribute]))
+                    return tuple(self._extract_aliases_from_condition(node_data[attribute]))
+
+    def _get_join_pairings_in_order(self) -> Tuple[List[Tuple[str, str]], Dict]:
+        # incrementally parse each join node from bottom up (and left to right, each level will be a list) to get join pairings
+        # Start from the lowest level, travel upwards breadth-first
+        # print("lowest level:", self.lowest_level)
+        ordered_join_pairs = []
+        relation_aliases = {}  # {node_id: {'join_on': (alias, alias)}}
+        for node_level in range(self.lowest_level, -1, -1):
+            # print("processing for node_level:", node_level)
+            nodes = self._get_nodes_by_level(node_level)
+            for node_id in nodes:
+                node_data = self.graph.nodes(data=True)[node_id]
+                if "Join" in node_data['node_type'] or node_data['node_type'] == "Nested Loop":
+                    join_pair = self._get_single_join_pair(node_id)
+                    print("_join_table_aliases:", node_data['_join_table_aliases'])
+                    print("nested loop join pair:", join_pair)
+                    _join_table_aliases = node_data['_join_table_aliases']
+                    left = join_pair[0]
+
+                    if left != _join_table_aliases[0]: # left of pair is not actually left table in order
+                        join_pair = (join_pair[1], join_pair[0]) # thus switch it
+
+                    relation_aliases[node_id] = {'join_on': join_pair}
+
+                    ordered_join_pairs.append(join_pair)
+        return ordered_join_pairs, relation_aliases
 
     @staticmethod
     def _get_join_order_aliases(join_order_str: str):
@@ -48,11 +126,14 @@ class QEPParser:
     def _extract_aliases_from_condition(self, condition: str) -> Set[str]:
         """Extract all table aliases from a condition string."""
         # Extract all words from the condition
+        condition = condition.replace("(", "")
+        condition = condition.replace(")", "")
         words = condition.split()
         aliases = set()
 
         # Check if each word is an alias
         for word in words:
+            print("word:", word)
             candidate = word.split('.')[0]  # only consider the left side of the dot
             # Check if the word is a valid alias
             if candidate.lower() in self.alias_map:
@@ -209,7 +290,7 @@ class QEPParser:
                     f"Join order for node type {node_data['node_type']} on {node_data['aliases']} is {join_order[node_id]['_join_order']}")
         return join_order
 
-    def parse(self, qep_data: List) -> nx.DiGraph:
+    def parse(self, qep_data: List) -> Tuple[nx.DiGraph, List]:
         """Parse the QEP data into a networkX graph."""
         self.graph.clear()
 
@@ -251,7 +332,15 @@ class QEPParser:
         # Set join table aliases as node attribute
         nx.set_node_attributes(self.graph, join_table_aliases)
 
-        return self.graph
+        # Ordered Join
+        ordered_join_pairs, join_relation_aliases = self._get_join_pairings_in_order()
+
+        # Set join relations as node attribute
+        nx.set_node_attributes(self.graph, join_relation_aliases)
+
+        print("ordered_join_pairs:", ordered_join_pairs)
+
+        return self.graph, ordered_join_pairs
 
 
 if __name__ == "__main__":
@@ -263,7 +352,7 @@ if __name__ == "__main__":
     db_manager = DatabaseManager('TPC-H')
     query = """
         select 
-        /*+ Leading( ( ( (l2 l s) o) c) ) */
+        /*+ Leading( ( ( (l2 l s) o) c) ) NestLoop(c o l s) */
         * 
     from customer C, orders O, lineitem L, supplier S
     where C.c_custkey = O.o_custkey 

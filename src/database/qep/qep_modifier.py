@@ -8,7 +8,7 @@ from src.settings.filepaths import VIZ_DIR
 
 
 class QEPModifier:
-    def __init__(self, graph: nx.DiGraph):
+    def __init__(self, graph: nx.DiGraph, join_order: List):
         """
         Initialize the QueryModifier with a query execution plan graph.
 
@@ -17,6 +17,7 @@ class QEPModifier:
         """
         self.graph = graph.copy()  # Create a copy to preserve the original
         self.modifications: List[QueryModification] = []
+        self.join_order = join_order.copy() # Create a copy to preserve the original
 
     def _find_matching_nodes(self, modification: QueryModification) -> List[str]:
         """
