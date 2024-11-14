@@ -22,6 +22,8 @@ class QEPModifier:
         self.modifications: List[Union[TypeModification, JoinOrderModification, JoinOrderModificationSpecced]] = []
         self.join_order = deepcopy(join_order) # Create a copy to preserve the original
         self.alias_map = alias_map
+        self.condition_keys = ['Filter', 'Join Filter', 'Hash Cond', 'Recheck Cond', 'Index Cond', 'Merge Cond',
+                               'Cache Key']
 
     def _find_matching_nodes(self, modification: TypeModification) -> List[str]:
         """
@@ -92,11 +94,16 @@ class QEPModifier:
             join_type: Join type to match
             join_pair: Pair of table aliases involved in the join
         """
+        print("Getting join node by type and alias")
         for node, node_data in self.graph.nodes(data=True):
+            if node_data.get('node_type') in JoinType and node_data.get('node_type') != 'Hash':
+                print("node_data['node_type']:", node_data['node_type'], "node_data['join_on']:", node_data['join_on'], "comparing against", join_type, join_pair)
             if node_data.get('node_type') == join_type:
-                print("node_data['join_on']:", node_data['join_on'])
                 if node_data['join_on'] == join_pair:
+                    print("found node:", node)
                     return node
+                else:
+                    print("_node_data['join_on']:", node_data['join_on'], "join_pair:", join_pair, "join_type:", join_type)
 
     def _find_element(self, nested_list, target, path=None):
         """
@@ -195,13 +202,17 @@ class QEPModifier:
 
     def _swap_join_order(self, modification: Union[JoinOrderModification, JoinOrderModificationSpecced]):
         if isinstance(modification, JoinOrderModification): # get node by id
-            join_node_1_id: str = modification.join_order_1_id
-            join_node_2_id: str = modification.join_order_2_id
+            join_node_1_id: str = modification.join_node_1_id
+            join_node_2_id: str = modification.join_node_1_id
         else: # is JoinOrderModificationSpecced
             print("isJoinOrderModificationSpecced")
             print("modification.join_order_1:", modification.join_order_1)
+            print("modification.join_type_1:", modification.join_type_1)
             join_node_1_id: str = self._get_join_node_by_type_and_alias(modification.join_type_1, modification.join_order_1)
+            print("join_node_1_id:", join_node_1_id)
+            print("modification.join_order_2:", modification.join_order_2)
             join_node_2_id: str = self._get_join_node_by_type_and_alias(modification.join_type_2, modification.join_order_2)
+            print("join_node_2_id:", join_node_2_id)
 
         # Copy node data
         join_node_1_data = deepcopy(self.graph.nodes(True)[join_node_1_id])
@@ -266,9 +277,14 @@ class QEPModifier:
         isRoot1 = join_node_1_data.get('is_root')
         isRoot2 = join_node_2_data.get('is_root')
 
+        # swap join on
+        _temp_join_on = join_on_1
+        join_on_1 = join_on_2
+        join_on_2 = _temp_join_on
+
         join_order_update_d = {
-            join_node_1_id: {'_join_order': join_node_1_order, 'join_order': join_order_str_1, 'is_root': isRoot1},
-            join_node_2_id: {'_join_order': join_node_2_order, 'join_order': join_order_str_2, 'is_root': isRoot2}
+            join_node_1_id: {'_join_order': join_node_1_order, 'join_order': join_order_str_1, 'is_root': isRoot1, 'join_on': join_on_1},
+            join_node_2_id: {'_join_order': join_node_2_order, 'join_order': join_order_str_2, 'is_root': isRoot2, 'join_on': join_on_2}
         }
 
         # Update the _join_order attribute of the 2 nodes
@@ -364,6 +380,13 @@ class QEPModifier:
 
         return node_positions_d
 
+    def remove_cond_attributes(self):
+        for node in self.graph.nodes():
+            attrs = list(self.graph.nodes[node].keys())
+            for attr in attrs:
+                if attr in self.condition_keys:
+                    del self.graph.nodes[node][attr]
+
     def apply_modifications(self, match_node_by_id: bool = True) -> nx.DiGraph:
         """
         Apply all stored modifications to the query plan graph.
@@ -394,6 +417,9 @@ class QEPModifier:
         # set positions of nodes
         node_positions_d = self.get_node_positions()
         nx.set_node_attributes(self.graph, node_positions_d)
+
+        # remove conditions from nodes
+        self.remove_cond_attributes()
         self.clear_costs()
         return self.graph
 

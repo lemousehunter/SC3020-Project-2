@@ -67,6 +67,8 @@ class QEPParser:
                     print("aliases:", self._extract_aliases_from_condition(node_data[attribute]))
                     return tuple(self._extract_aliases_from_condition(node_data[attribute]))
 
+        print("still not found:", node_data['node_type'])
+
     def _get_join_pairings_in_order(self) -> Tuple[List[Tuple[Tuple[str, str], str]], Dict]:
         # incrementally parse each join node from bottom up (and left to right, each level will be a list) to get join pairings
         # Start from the lowest level, travel upwards breadth-first
@@ -80,14 +82,22 @@ class QEPParser:
                 node_data = self.graph.nodes(data=True)[node_id]
                 if "Join" in node_data['node_type'] or node_data['node_type'] == "Nested Loop":
                     join_pair = self._get_single_join_pair(node_id)
-                    print("_join_table_aliases:", node_data['_join_table_aliases'])
-                    print("nested loop join pair:", join_pair)
-                    _join_order = node_data['_join_order']
-                    right = join_pair[-1]
-                    print("_join_table_aliases:", _join_order)
-                    if right != _join_order[-1]: # right of pair is not actually right table in order
-                        join_pair = (join_pair[1], join_pair[0]) # thus switch it
-                        print("switched join pair:", join_pair)
+                    if join_pair:
+                        print("_join_table_aliases:", node_data['_join_table_aliases'])
+                        print("nested loop join pair:", join_pair)
+                        _join_order = node_data['_join_order']
+                        right = join_pair[-1]
+                        print("_join_table_aliases:", _join_order)
+                        if right != _join_order[-1]: # right of pair is not actually right table in order
+                            join_pair = (join_pair[1], join_pair[0]) # thus switch it
+                            print("switched join pair:", join_pair)
+                    else:
+                        if 'Join Filter' in node_data.keys():
+                            join_pair = tuple(self._extract_aliases_from_condition(node_data['Join Filter']))
+                        else:
+                            if len(_join_order) == 2:
+                                join_pair = tuple(_join_order)
+                                print("2 length join pair:", join_pair)
 
                     ordered_join_pairings_d[node_id] = {'join_on': join_pair}
 
@@ -466,7 +476,7 @@ if __name__ == "__main__":
 
     # 2. Parse the original plan
     parser = QEPParser()
-    original_graph = parser.parse(qep_data)
+    original_graph, ordered_join_pairs, alias_map = parser.parse(qep_data)
 
     # 3. Visualize the original plan
     QEPVisualizer(original_graph).visualize(VIZ_DIR / "original_qep.png")

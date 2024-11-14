@@ -65,9 +65,23 @@ where C.c_custkey = O.o_custkey
 
     # Change the join order of two joins
     join_order_modification = JoinOrderModificationSpecced(
+        join_order_1=('l', 'o'),
+        join_type_1=JoinType.HASH_JOIN.value,
+        join_order_2=('l', 's'),
+        join_type_2=JoinType.HASH_JOIN.value
+    )
+
+    join_order_modification = JoinOrderModificationSpecced(
         join_order_1=('o', 'c'),
         join_type_1=JoinType.NESTED_LOOP.value,
         join_order_2=('l', 's'),
+        join_type_2=JoinType.HASH_JOIN.value
+    )
+
+    join_order_modification = JoinOrderModificationSpecced(
+        join_order_1=('o', 'c'),
+        join_type_1=JoinType.NESTED_LOOP.value,
+        join_order_2=('l', 'o'),
         join_type_2=JoinType.HASH_JOIN.value
     )
 
