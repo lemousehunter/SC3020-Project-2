@@ -10,6 +10,7 @@ from src.database.qep.qep_modifier import QEPModifier
 from src.database.query_modifier import QueryModifier
 from src.custom_types.qep_types import TypeModification, JoinOrderModification
 from src.database.hint_generator import HintConstructor
+from src.utils.JSONEncoder import SetEncoder
 
 
 @dataclass
@@ -53,7 +54,7 @@ class QueryPlanManager:
         for (join_pair, node_id) in self.ordered_relation_pairs:
             _join_order = graph.nodes[node_id].get('join_order', '')
 
-            # Check if the join can use 
+            # Check if the join can use
 
             for candidate_pair, candidate_node_id in self.ordered_relation_pairs:
                 # Get candidate node's parent join aliases
@@ -183,6 +184,7 @@ class DatabaseServer:
 
     def __init__(self):
         self.app = Flask(__name__)
+        self.app.json = SetEncoder(self.app)
         CORS(self.app)
         self.db_connection: Optional[DatabaseManager] = None
         self.query_plan_manager = QueryPlanManager()
