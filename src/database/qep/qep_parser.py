@@ -171,10 +171,11 @@ class QEPParser:
                 aliases.add(alias)
 
         # Node is root if it does not have a parent
-        is_root = False
         if parent_node_id is None:
             is_root = True
             self.root_node_id = node_id
+        else:
+            is_root = False
 
         node_attrs = {
             'node_type': node_type,
@@ -292,6 +293,88 @@ class QEPParser:
                     f"Join order for node type {node_data['node_type']} on {node_data['aliases']} is {join_order[node_id]['_join_order']}")
         return join_order
 
+    def get_node_positions(self) -> Dict[str, Dict[str, str]]:
+        node_positions_d = {}  # {node_id: {position: 'l'/'r'/'c'}}
+
+        for node_id, node_data in self.graph.nodes(True):
+            # only care for the positions of non subquery nodes
+            if not node_data.get('_subplan'):
+                # check not root
+                if not node_data.get('is_root'):
+                    # check parent if node is only child
+                    parent = list(self.graph.predecessors(node_id))[0]
+                    parent_node_data = self.graph.nodes(True)[parent]
+                    if len(list(self.graph.successors(parent))) == 1: # only child
+                        # therefore put 'c' for center
+                        node_positions_d[node_id] = {'position': 'c'}
+                    else: # not only child
+                        # check if node is left or right child by getting join order
+                        parent_join_order = parent_node_data.get('_join_order')
+                        right_order = parent_join_order[-1]
+                        node_join_order = node_data.get('_join_order')
+                        print("left_join_order:", parent_join_order, "node_type:", node_data.get('node_type'), "node_join_order:", node_join_order)
+                        if right_order == node_join_order:
+                            node_positions_d[node_id] = {'position': 'r'}
+                        else:
+                            node_positions_d[node_id] = {'position': 'l'}
+                else:
+                    # root node
+                    node_positions_d[node_id] = {'position': 'c'}
+            else:
+                # subquery node set as 's' which means ignore positioning
+                node_positions_d[node_id] = {'position': 's'}
+
+        return node_positions_d
+
+    def get_total_cost(self) -> float:
+        """
+        Calculate the total cost by summing the 'cost' attribute of all nodes in the graph.
+
+        Parameters:
+        G (networkx.Graph): A NetworkX graph where nodes have a 'cost' attribute
+
+        Returns:
+        float: The total cost sum across all nodes
+
+        Raises:
+        KeyError: If any node is missing the 'cost' attribute
+        """
+        total_cost = 0
+
+        # Iterate through all nodes and sum their costs
+        for node in self.graph.nodes():
+            try:
+                node_cost = self.graph.nodes[node]['cost']
+                total_cost += node_cost
+            except KeyError:
+                raise KeyError(f"Node {node} is missing the 'cost' attribute")
+
+        return total_cost
+
+    @staticmethod
+    def _flatten_list(nested_list: List) -> List:
+        flat_list = []
+
+        def flatten(lst):
+            for item in lst:
+                if isinstance(item, (list, tuple)):
+                    flatten(item)
+                else:
+                    flat_list.append(item)
+
+        flatten(nested_list)
+        return flat_list
+
+    def _get_join_node_aliases(self, join_nodes: List[Tuple[Tuple, str]]) -> Dict:
+        join_aliases_d = {} # {node_id: {'join_aliases': [alias, alias]}}
+        for join_pair, join_node_id in join_nodes:
+            node_data = self.graph.nodes(data=True)[join_node_id]
+            join_aliases = node_data['_join_table_aliases']
+            join_aliases_d[join_node_id] = {'aliases': join_aliases}
+
+        #print("join_aliases_d:", join_aliases_d)
+        return join_aliases_d
+
     def parse(self, qep_data: List) -> Tuple[nx.DiGraph, List, Dict[str, str]]:
         """Parse the QEP data into a networkX graph."""
         self.graph.clear()
@@ -341,6 +424,18 @@ class QEPParser:
         nx.set_node_attributes(self.graph, join_relation_aliases)
 
         print("ordered_join_pairs:", ordered_join_pairs)
+
+        # Get node positions
+        node_positions = self.get_node_positions()
+
+        # Set node positions as node attribute
+        nx.set_node_attributes(self.graph, node_positions)
+
+        # Get join node aliases
+        join_node_aliases = self._get_join_node_aliases(ordered_join_pairs)
+
+        # Set join node aliases
+        nx.set_node_attributes(self.graph, join_node_aliases)
 
         return self.graph, ordered_join_pairs, self.alias_map
 

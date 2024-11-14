@@ -331,6 +331,38 @@ class QEPModifier:
                     self.graph.add_edge(node_id, node)
                     break
 
+    def get_node_positions(self) -> Dict[str, Dict[str, str]]:
+        node_positions_d = {}  # {node_id: {position: 'l'/'r'/'c'}}
+
+        for node_id, node_data in self.graph.nodes(True):
+            # only care for the positions of non subquery nodes
+            if not node_data.get('_subplan'):
+                # check not root
+                if not node_data.get('is_root'):
+                    # check parent if node is only child
+                    parent = list(self.graph.predecessors(node_id))[0]
+                    parent_node_data = self.graph.nodes(True)[parent]
+                    if len(list(self.graph.successors(parent))) == 1: # only child
+                        # therefore put 'c' for center
+                        node_positions_d[node_id] = {'position': 'c'}
+                    else: # not only child
+                        # check if node is left or right child by getting join order
+                        parent_join_order = parent_node_data.get('_join_order')
+                        right_order = parent_join_order[-1]
+                        node_join_order = node_data.get('_join_order')
+                        print("left_join_order:", parent_join_order, "node_type:", node_data.get('node_type'), "node_join_order:", node_join_order)
+                        if right_order == node_join_order:
+                            node_positions_d[node_id] = {'position': 'r'}
+                        else:
+                            node_positions_d[node_id] = {'position': 'l'}
+                else:
+                    # root node
+                    node_positions_d[node_id] = {'position': 'c'}
+            else:
+                # subquery node set as 's' which means ignore positioning
+                node_positions_d[node_id] = {'position': 's'}
+
+        return node_positions_d
 
     def apply_modifications(self, match_node_by_id: bool = True) -> nx.DiGraph:
         """
@@ -359,33 +391,11 @@ class QEPModifier:
                     else: # is JoinOrderModificationSpecced
                         print("applying join order modification specced")
                         self._swap_join_order(modification)
+        # set positions of nodes
+        node_positions_d = self.get_node_positions()
+        nx.set_node_attributes(self.graph, node_positions_d)
         self.clear_costs()
         return self.graph
-
-    def get_total_cost(self) -> float:
-        """
-        Calculate the total cost by summing the 'cost' attribute of all nodes in the graph.
-
-        Parameters:
-        G (networkx.Graph): A NetworkX graph where nodes have a 'cost' attribute
-
-        Returns:
-        float: The total cost sum across all nodes
-
-        Raises:
-        KeyError: If any node is missing the 'cost' attribute
-        """
-        total_cost = 0
-
-        # Iterate through all nodes and sum their costs
-        for node in self.graph.nodes():
-            try:
-                node_cost = self.graph.nodes[node]['cost']
-                total_cost += node_cost
-            except KeyError:
-                raise KeyError(f"Node {node} is missing the 'cost' attribute")
-
-        return total_cost
 
     def reset(self):
         """Reset modifications list."""
@@ -449,7 +459,7 @@ if __name__ == "__main__":
     join_order_modification = JoinOrderModificationSpecced(
         join_order_1=('o', 'c'),
         join_type_1=JoinType.NESTED_LOOP.value,
-        join_order_2=('l', 's'),
+        join_order_2=('l', 'o'),
         join_type_2=JoinType.HASH_JOIN.value
     )
 

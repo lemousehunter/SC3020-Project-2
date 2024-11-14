@@ -24,24 +24,51 @@ class QueryPlanManager:
 
     def __init__(self):
         self.original_graph: Optional[nx.DiGraph] = None
+        self.ordered_relation_pairs: Optional[List[Set[str]]] = None
+        self.alias_map: Optional[Dict[str, str]] = None
         self.parser = QEPParser()
+        self.preview_graph: Optional[nx.DiGraph]  = None
 
     def generate_plan(self, query: str, db_connection: DatabaseManager) -> Dict:
         """Generate query execution plan"""
         qep_data = db_connection.get_qep(query)
-        self.original_graph = self.parser.parse(qep_data)
+        self.original_graph, self.ordered_relation_pairs, self.alias_map = self.parser.parse(qep_data)
 
         return self._convert_graph_to_dict(self.original_graph)
 
-    def modify_plan(self, query: str, modifications: List[Dict], db_connection: DatabaseManager) -> Dict:
-        """Apply modifications to query plan"""
+    def get_avail_join_swaps(self) -> Dict:
+        """Get available join swaps for the current query plan"""
+        if not self.original_graph:
+            graph = self.preview_graph
+            if not graph:
+                raise ValueError("No graph available")
+        else:
+            graph = self.original_graph
+
+        avail_joins = {}
+        for _, node_id in self.ordered_relation_pairs:
+            avail_joins[node_id] = []
+
+        # self.order_relation_pairs holds all the join pairings
+        for (join_pair, node_id) in self.ordered_relation_pairs:
+            _join_order = graph.nodes[node_id].get('join_order', '')
+            for candidate_pair, candidate_node_id in self.ordered_relation_pairs:
+                candidate_node_aliases = graph.nodes[candidate_node_id].get('aliases', [])
+                for alias in join_pair:
+                    if alias in candidate_node_aliases:
+                        avail_joins[node_id].append(alias)
+
+        return avail_joins
+
+    def _modify_graph(self, modifications: List[Dict]):
         if not self.original_graph:
             raise ValueError("No original graph available")
 
-        qep_modifier = QEPModifier(self.original_graph)
+        qep_modifier = QEPModifier(self.original_graph, self.ordered_relation_pairs, self.alias_map)
 
         # Process modifications
         for mod in modifications:
+            # TODO: parse modification type
             query_mod = TypeModification(
                 node_type=mod.get('node_type'),
                 original_type=mod.get('original_type'),
@@ -53,25 +80,46 @@ class QueryPlanManager:
 
         modified_graph = qep_modifier.apply_modifications()
 
+        return modified_graph
+
+
+    def modify_plan(self, query: str, modifications: List[Dict], db_connection: DatabaseManager) -> Dict:
+        """Apply modifications to query plan"""
+
+        original_cost = self.parser.get_total_cost()
+
+        modified_graph = self._modify_graph(modifications)
+
         # Generate hints
-        hints, hint_list = HintConstructor(modified_graph).generate_hints(query)
+        hints, hint_list = HintConstructor(modified_graph).generate_hints()
         modified_query = QueryModifier(query=query, hint=hints).modify()
 
         # Get updated plan
         updated_qep = db_connection.get_qep(modified_query)
-        updated_graph = self.parser.parse(updated_qep)
+        updated_graph, updated_ordered_relation_pairs, updated_alias_map = self.parser.parse(updated_qep)
+
+        modified_cost = self.parser.get_total_cost()
 
         return {
             "modified_query": modified_query,
             "costs": {
-                "original": self.parser.get_total_cost(),
-                "modified": self.parser.get_total_cost()
+                "original": original_cost,
+                "modified": modified_cost
             },
             "graph": self._convert_graph_to_dict(updated_graph),
             "hints": {hint: "Some Explanation" for hint in hint_list}
         }
 
-    def _convert_graph_to_dict(self, graph: nx.DiGraph) -> Dict:
+    def preview_swap(self, mod_lst: List) -> Dict:
+        """Preview the swap of two join nodes"""
+        modified_graph = self._modify_graph(mod_lst)
+
+        modified_graph_json = self._convert_graph_to_dict(modified_graph)
+
+        return modified_graph_json
+
+    @staticmethod
+    def _convert_graph_to_dict(graph: nx.DiGraph) -> Dict:
         """Convert NetworkX graph to dictionary format"""
         nodes = []
         for node_id, data in graph.nodes(data=True):
@@ -79,16 +127,15 @@ class QueryPlanManager:
             type_name = "Join" if ("Join" in node_type or "Nest" in node_type) else \
                 "Scan" if "Scan" in node_type else "Unknown"
 
-            nodes.append({
-                "id": node_id,
-                "join_or_scan": type_name,
-                "type": node_type,
-                "cost": data.get('cost', -1),
-                "isLeaf": len(list(graph.neighbors(node_id))) == 0,
-                "conditions": data.get('conditions', []),
-                "tables": sorted(list(data.get('tables', set()))),
-                "isRoot": data.get('is_root', False)
-            })
+            data_dict = {
+                k: v for k, v in data.items() if not k.startswith('_')
+            }
+
+            data_dict["_join_or_scan"] = type_name
+            data_dict["_isLeaf"] = len(list(graph.neighbors(node_id))) == 0
+            data_dict["_id"] = node_id
+
+            nodes.append(data_dict)
 
         edges = [{"source": u, "target": v} for u, v in graph.edges()]
 
@@ -114,6 +161,38 @@ class DatabaseServer:
         self.app.route('/api/database/select', methods=['POST'])(self.select_database)
         self.app.route('/api/query/plan', methods=['POST'])(self.get_query_plan)
         self.app.route('/api/query/modify', methods=['POST'])(self.modify_query)
+        self.app.route('/api/query/get_avail_join_swaps', methods=['GET'])(self.get_avail_join_swaps)
+        self.app.route('/api/preview_join_swaps', methods=['POST'])(self.preview_join_swaps)
+
+    def preview_join_swaps(self):
+        """Preview join swaps based on modifications"""
+        if not request.is_json:
+            return jsonify({"status": "error", "message": "Content-Type must be application/json"}), 400
+
+        data = request.get_json()
+        modifications = data.get('modifications', [])
+
+        try:
+            modified_graph_json = self.query_plan_manager.preview_swap(modifications)
+            return jsonify({
+                "status": "success",
+                "message": "Preview join swaps successful",
+                "networkx_object": modified_graph_json
+            }), 200
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    def get_avail_join_swaps(self):
+        """Get available join swaps for the current query plan"""
+        try:
+            avail_joins = self.query_plan_manager.get_avail_join_swaps()
+            return jsonify({
+                "status": "success",
+                "message": "Available join swaps retrieved successfully",
+                "avail_joins": avail_joins
+            }), 200
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 500
 
     @staticmethod
     def get_available_databases():
