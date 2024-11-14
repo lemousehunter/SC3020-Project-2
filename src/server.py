@@ -8,7 +8,7 @@ from src.database.databaseManager import DatabaseManager
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_modifier import QEPModifier
 from src.database.query_modifier import QueryModifier
-from src.types.qep_types import TypeModification
+from src.types.qep_types import TypeModification, JoinOrderModification
 from src.database.hint_generator import HintConstructor
 
 
@@ -53,6 +53,8 @@ class QueryPlanManager:
         for (join_pair, node_id) in self.ordered_relation_pairs:
             _join_order = graph.nodes[node_id].get('join_order', '')
 
+            # Check if the join can use 
+
             for candidate_pair, candidate_node_id in self.ordered_relation_pairs:
                 # Get candidate node's parent join aliases
                 candidate_node_parent = graph.predecessors(candidate_node_id)[0]
@@ -65,6 +67,8 @@ class QueryPlanManager:
                 parent_condition = False
                 child_condition = False
 
+
+                # TODO: Fix this, have to check new position rather than current...
                 for alias in join_pair:
                     # Check if any of the aliases of the join is in the candidate node's parent.
                     # Check for child join aliases as well. If yes to both then join swap is permissible.
@@ -87,14 +91,22 @@ class QueryPlanManager:
 
         # Process modifications
         for mod in modifications:
-            # TODO: parse modification type
-            query_mod = TypeModification(
-                node_type=mod.get('node_type'),
-                original_type=mod.get('original_type'),
-                new_type=mod.get('new_type'),
-                tables=set(mod.get('tables', [])),
-                node_id=mod.get('node_id', '')
-            )
+            modification_type = mod.get('ModType')
+            if modification_type == 'TypeChange':
+                query_mod = TypeModification(
+                    node_type=mod.get('node_type'),
+                    original_type=mod.get('original_type'),
+                    new_type=mod.get('new_type'),
+                    tables=set(mod.get('tables', [])),
+                    node_id=mod.get('node_id', '')
+                )
+            elif modification_type == "JoinOrderChange":
+                query_mod = JoinOrderModification(
+                    join_node_1_id=mod.get('join_node_1_id'),
+                    join_node_2_id=mod.get('join_node_2_id')
+                )
+            else:
+                raise ValueError(f"Invalid modification type: {modification_type}")
             qep_modifier.add_modification(query_mod)
 
         modified_graph = qep_modifier.apply_modifications()

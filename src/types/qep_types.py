@@ -76,8 +76,8 @@ class JoinOrderModificationSpecced:
 @dataclass
 class JoinOrderModification:
     # Join order modification with node id
-    join_order_1_id: str
-    join_order_2_id: str
+    join_node_1_id: str
+    join_node_2_id: str
 
 
 if __name__ == "__main__":
