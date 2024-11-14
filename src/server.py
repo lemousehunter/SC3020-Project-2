@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 import networkx as nx
 from dataclasses import dataclass
 
@@ -52,11 +52,30 @@ class QueryPlanManager:
         # self.order_relation_pairs holds all the join pairings
         for (join_pair, node_id) in self.ordered_relation_pairs:
             _join_order = graph.nodes[node_id].get('join_order', '')
+
             for candidate_pair, candidate_node_id in self.ordered_relation_pairs:
-                candidate_node_aliases = graph.nodes[candidate_node_id].get('aliases', [])
+                # Get candidate node's parent join aliases
+                candidate_node_parent = graph.predecessors(candidate_node_id)[0]
+                candidate_parent_aliases = graph.nodes[candidate_node_parent].get('aliases', [])
+
+                # Get candidate node's children join aliases
+                candidate_node_children = list(graph.successors(candidate_node_id))
+                candidate_node_join_children = [child for child in candidate_node_children if 'Join' in graph.nodes[child]['node_type'] or 'Nest' in graph.nodes[child]['node_type']]
+                candidate_children_aliases = [graph.nodes[child]['aliases'] for child in candidate_node_join_children]
+                parent_condition = False
+                child_condition = False
+
                 for alias in join_pair:
-                    if alias in candidate_node_aliases:
-                        avail_joins[node_id].append(alias)
+                    # Check if any of the aliases of the join is in the candidate node's parent.
+                    # Check for child join aliases as well. If yes to both then join swap is permissible.
+                    # If no to either then join swap is not allowed
+                    if alias in candidate_parent_aliases:
+                        parent_condition = True
+                    if alias in candidate_children_aliases:
+                        child_condition = True
+
+                if parent_condition and child_condition:
+                    avail_joins[node_id].append(candidate_node_id)
 
         return avail_joins
 
@@ -110,13 +129,15 @@ class QueryPlanManager:
             "hints": {hint: "Some Explanation" for hint in hint_list}
         }
 
-    def preview_swap(self, mod_lst: List) -> Dict:
+    def preview_swap(self, mod_lst: List) -> Tuple[Dict, Dict]:
         """Preview the swap of two join nodes"""
         modified_graph = self._modify_graph(mod_lst)
 
         modified_graph_json = self._convert_graph_to_dict(modified_graph)
 
-        return modified_graph_json
+        avail_join_swaps = self.get_avail_join_swaps()
+
+        return modified_graph_json, avail_join_swaps
 
     @staticmethod
     def _convert_graph_to_dict(graph: nx.DiGraph) -> Dict:
@@ -173,11 +194,12 @@ class DatabaseServer:
         modifications = data.get('modifications', [])
 
         try:
-            modified_graph_json = self.query_plan_manager.preview_swap(modifications)
+            modified_graph_json, updated_avail_join_swaps = self.query_plan_manager.preview_swap(modifications)
             return jsonify({
                 "status": "success",
                 "message": "Preview join swaps successful",
-                "networkx_object": modified_graph_json
+                "networkx_object": modified_graph_json,
+                "avail_joins": updated_avail_join_swaps
             }), 200
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
