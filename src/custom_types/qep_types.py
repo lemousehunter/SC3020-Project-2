@@ -56,14 +56,14 @@ class TypeModification:
 
 @dataclass
 class JoinOrderModificationSpecced:
-    # Join order modification with specified join types and orders to identify nodes involved
+    # Join order modification with specified join custom_types and orders to identify nodes involved
     join_order_1: Tuple[str, str]
     join_type_1: str
     join_order_2: Tuple[str, str]
     join_type_2: str
 
     def __post_init__(self):
-        # Validate join types:
+        # Validate join custom_types:
         if self.join_type_1 not in JoinType:
             if self.join_type_2 not in JoinType:
                 raise ValueError(f"Invalid join type: {self.join_type_1} and {self.join_type_2}")
