@@ -51,6 +51,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   useEffect(() => {
     if (qepData) {
       const treeData = convertNetworkXToTree(qepData);
+      console.log(treeData);
       setQepTreeData(treeData);
       setModifiedTreeData(JSON.parse(JSON.stringify(treeData)));
     }
@@ -72,9 +73,9 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   const handleNodeClick = (node: any) => {
     const nodeId = node.data.id || 'Unknown ID';
     const nodeType = node.data.type || 'Unknown Type';
-    const nodeCategory = node.data.join_or_scan || 'Unknown'; // Changed to join_or_scan
+    const nodeCategory = node.data._join_or_scan || 'Unknown'; // Changed to join_or_scan
 
-    setSelectedNode({ id: nodeId, type: nodeType, join_or_scan: nodeCategory });
+    setSelectedNode({ id: nodeId, type: nodeType, _join_or_scan: nodeCategory });
   };
 
   const handleScanChange = (value: string | null) => {
@@ -90,8 +91,8 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   };
 
   const confirmChange = () => {
-    if (selectedNode && selectedNode.newType && selectedNode.join_or_scan !== 'Unknown') {
-      const updatedTreeData = JSON.parse(JSON.stringify(modifiedTreeData));
+    if (selectedNode && selectedNode.newType && selectedNode._join_or_scan !== 'Unknown') {
+      const updatedTreeData = JSON.parse(JSON.stringify(modifiedTreeData)); // Clone tree to apply changes
       updateTreeData(updatedTreeData, selectedNode.id, selectedNode.newType);
       setModifiedTreeData(updatedTreeData);
 
@@ -103,15 +104,17 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
           originalType: selectedNode.type,
         },
       ]);
+
       setSelectedNode(null);
     }
   };
 
   const updateTreeData = (treeData: any, nodeId: string, newType: string) => {
     if (treeData.id === nodeId) {
-      treeData.type = newType;
-      treeData.name = newType;
-    } else if (treeData.children) {
+      // Update the node type
+      treeData.node_type = newType;
+    } else if (treeData.children && treeData.children.length > 0) {
+      // Recursively update child nodes
       treeData.children.forEach((child: any) => updateTreeData(child, nodeId, newType));
     }
   };
@@ -140,7 +143,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
         node_type: node?.type?.toUpperCase() || 'N/A', // Maps `join_or_scan` to `node_type`
         original_type: change.originalType,
         new_type: change.newType,
-        tables: Array.isArray(node?.table) ? node.table : [node?.table || 'No tables'],
+        mod_type: 'TypeChange',
         node_id: change.id,
       };
     });
@@ -213,24 +216,30 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   const renderQEPNode = ({ nodeDatum, hierarchyPointNode }: any) => {
     const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
     const fillColor =
-      nodeDatum.join_or_scan === 'Scan'
+      nodeDatum._join_or_scan === 'Scan'
         ? '#FFD700'
-        : nodeDatum.join_or_scan === 'Unknown'
+        : nodeDatum._join_or_scan === 'Unknown'
           ? '#EAF6FB'
-          : '#B0D4FF'; // Default color for other types// Use join_or_scan for color
-    const strokeColor = isSelected && nodeDatum.join_or_scan !== 'Unknown' ? '#FF4500' : '#000';
+          : '#B0D4FF'; // Default color for other types
+    const strokeColor = isSelected && nodeDatum._join_or_scan !== 'Unknown' ? '#FF4500' : '#000';
     const textColor = '#000';
 
-    const maxLineLength = 20;
-    const splitTableText = Array.isArray(nodeDatum.table)
-      ? nodeDatum.table
-      : typeof nodeDatum.table === 'string'
-        ? nodeDatum.table.match(new RegExp(`.{1,${maxLineLength}}`, 'g'))
-        : ['No tables'];
+    // List of attributes to display (excluding unwanted ones like `id`, `is_root`, `children`)
+    const allowedAttributes = [
+      'node_type',
+      'cost',
+      'join_on',
+      'Hash Cond',
+      'join_order',
+      'position',
+    ];
+    const displayAttributes = Object.entries(nodeDatum)
+      .filter(([key]) => allowedAttributes.includes(key))
+      .map(([key, value]) => ({ key, value }));
 
     const baseHeight = 60;
     const lineHeight = 18;
-    const totalHeight = baseHeight + splitTableText.length * lineHeight;
+    const totalHeight = baseHeight + displayAttributes.length * lineHeight;
 
     return (
       <g onClick={() => handleNodeClick(hierarchyPointNode)}>
@@ -249,48 +258,44 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
           y={-totalHeight / 2 + 20}
           style={{ fontSize: 18, textAnchor: 'middle', fill: textColor }}
         >
-          {nodeDatum.type}
+          {nodeDatum.node_type || 'Unknown Type'}
         </text>
-        <text
-          x="0"
-          y={-totalHeight / 2 + 40}
-          style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
-        >
-          Cost: {nodeDatum.cost}
-        </text>
-        {splitTableText.map((line: string, index: number) => (
+        {displayAttributes.map((attr, index) => (
           <text
             key={index}
             x="0"
-            y={-totalHeight / 2 + 60 + index * lineHeight}
-            style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
+            y={-totalHeight / 2 + 40 + index * lineHeight}
+            style={{ fontSize: 14, textAnchor: 'middle', fill: textColor }}
           >
-            {index === 0 ? `Table: ${line}` : line}
+            {`${attr.key}: ${attr.value}`}
           </text>
         ))}
       </g>
     );
   };
 
-  const renderPreviewNode = ({ nodeDatum, hierarchyPointNode }: any) => {
-    const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
-    const fillColor = nodeDatum.join_or_scan === 'Scan' ? '#EAF6FB' : '#B0D4FF'; // Use join_or_scan for color
-    const strokeColor = isSelected && nodeDatum.join_or_scan !== 'Unknown' ? '#FF4500' : '#000';
-    const textColor = '#000'; // Text color
+  const renderPreviewNode = ({ nodeDatum }: any) => {
+    const fillColor =
+      nodeDatum._join_or_scan === 'Scan'
+        ? '#FFD700'
+        : nodeDatum._join_or_scan === 'Unknown'
+          ? '#EAF6FB'
+          : '#B0D4FF'; // Use join_or_scan for color
+    const strokeColor = '#000'; // Default stroke color (no selection for preview)
+    const textColor = '#000'; // Default text color
 
-    // Split table text into lines
-    const maxLineLength = 20;
-    const splitTableText = Array.isArray(nodeDatum.table)
-      ? nodeDatum.table
-      : nodeDatum.table.match(new RegExp(`.{1,${maxLineLength}}`, 'g')) || ['No tables'];
+    // Attributes to display, excluding `cost`
+    const allowedAttributes = ['node_type', 'join_on', 'Hash Cond', 'join_order', 'position'];
+    const displayAttributes = Object.entries(nodeDatum)
+      .filter(([key]) => allowedAttributes.includes(key))
+      .map(([key, value]) => ({ key, value }));
 
-    // Calculate dynamic height based on table text
-    const baseHeight = 60;
-    const lineHeight = 18;
-    const totalHeight = baseHeight + splitTableText.length * lineHeight;
+    const baseHeight = 60; // Base height for the rectangle
+    const lineHeight = 18; // Line height for each attribute
+    const totalHeight = baseHeight + displayAttributes.length * lineHeight;
 
     return (
-      <g onClick={() => handleNodeClick(hierarchyPointNode)}>
+      <g>
         {/* Node rectangle */}
         <rect
           x="-75"
@@ -300,25 +305,25 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
           rx="15"
           fill={fillColor}
           stroke={strokeColor}
-          strokeWidth={isSelected ? 3 : 1}
+          strokeWidth={1}
         />
-        {/* Node type */}
+        {/* Node type at the top */}
         <text
           x="0"
           y={-totalHeight / 2 + 20}
           style={{ fontSize: 18, textAnchor: 'middle', fill: textColor }}
         >
-          {nodeDatum.type}
+          {nodeDatum.node_type || 'Unknown Type'}
         </text>
-        {/* Table text */}
-        {splitTableText.map((line: string, index: number) => (
+        {/* Dynamically render additional attributes */}
+        {displayAttributes.map((attr, index) => (
           <text
             key={index}
             x="0"
-            y={-totalHeight / 2 + 50 + index * lineHeight}
-            style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
+            y={-totalHeight / 2 + 40 + index * lineHeight}
+            style={{ fontSize: 14, textAnchor: 'middle', fill: textColor }}
           >
-            {index === 0 ? `Table: ${line}` : line}
+            {`${attr.key}: ${attr.value}`}
           </text>
         ))}
       </g>
@@ -363,7 +368,8 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
                 pathFunc="straight"
                 translate={qepTranslate}
                 zoom={qepZoom}
-                separation={{ siblings: 2, nonSiblings: 2.5 }}
+                nodeSize={{ x: 120, y: 200 }}
+                separation={{ siblings: 1.5, nonSiblings: 3 }}
                 renderCustomNodeElement={renderQEPNode}
                 collapsible={false}
               />
@@ -396,6 +402,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
                     pathFunc="straight"
                     translate={aqpTranslate}
                     zoom={aqpZoom}
+                    nodeSize={{ x: 120, y: 200 }}
                     separation={{ siblings: 2, nonSiblings: 2.5 }}
                     renderCustomNodeElement={renderQEPNode} // Assuming renderQEPNode can handle generated AQP nodes
                     collapsible={false}
@@ -414,6 +421,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
                     pathFunc="straight"
                     translate={aqpTranslate}
                     zoom={aqpZoom}
+                    nodeSize={{ x: 120, y: 200 }}
                     separation={{ siblings: 2, nonSiblings: 2.5 }}
                     renderCustomNodeElement={renderPreviewNode}
                     collapsible={false}
@@ -434,9 +442,9 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
 
       {!generatedAQPData && (
         <Box mt="md" style={{ display: 'flex', justifyContent: 'space-between' }}>
-          {selectedNode && selectedNode.join_or_scan !== 'Unknown' && (
+          {selectedNode && selectedNode._join_or_scan !== 'Unknown' && (
             <Group spacing="sm">
-              {selectedNode.join_or_scan === 'Scan' ? (
+              {selectedNode._join_or_scan === 'Scan' ? (
                 <Select
                   label="Change Scan Type"
                   placeholder="Select scan type"
@@ -453,7 +461,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
               ) : (
                 <Select
                   label="Change Join Type"
-                  placeholder="Select join type"
+                  placeholder="Select Join Type"
                   data={['Hash Join', 'Merge Join', 'Nested Loop']}
                   value={selectedNode.newType || ''}
                   onChange={handleJoinChange}

@@ -3,20 +3,24 @@ export function convertNetworkXToTree(networkXData: any) {
 
   // Step 1: Initialize nodes in the map
   networkXData.nodes.forEach((node: any) => {
-    const maxLineLength = 40;
-    const tableText = node.tables.join(', ') || 'No tables';
-    const splitTableText = tableText.match(new RegExp(`.{1,${maxLineLength}}`, 'g')) || [];
+    // Extract visible attributes, excluding _id, is_root, children, and tables
+    const visibleAttributes = Object.keys(node)
+      .filter((key) => key !== 'id' && key !== 'is_root' && key !== 'tables' && key !== 'children')
+      .reduce((acc: any, key) => {
+        acc[key] = node[key];
+        return acc;
+      }, {});
 
-    nodeMap.set(node.id, {
-      id: node.id,
-      type: node.type,
-      join_or_scan: node.join_or_scan || 'Unknown',
-      cost: node.cost || 'N/A',
-      table: splitTableText,
-      isLeaf: node.isLeaf || false,
-      isRoot: node.isRoot || false,
-      conditions: node.conditions || [],
-      children: [], // Initialize children as an empty array
+    // Reorder so that 'node_type' is the first attribute
+    const reorderedAttributes = {
+      node_type: node.node_type,
+      ...visibleAttributes,
+    };
+
+    nodeMap.set(node._id, {
+      id: node._id,
+      ...reorderedAttributes,
+      children: [], // Initialize children
     });
   });
 
@@ -29,9 +33,25 @@ export function convertNetworkXToTree(networkXData: any) {
     }
   });
 
-  // Step 3: Identify the root node using the `isRoot` field
+  // Step 3: Sort children based on position
+  const sortNodesByPosition = (node: any) => {
+    if (node.children) {
+      const order: Record<'l' | 'c' | 'r' | 's', number> = { l: -1, c: 0, r: 1, s: 2 }; // Restrict types for position
+      node.children.sort(
+        (a: { position: 'l' | 'c' | 'r' | 's' }, b: { position: 'l' | 'c' | 'r' | 's' }) => {
+          return order[a.position] - order[b.position];
+        }
+      );
+
+      // Recursively sort child nodes
+      node.children.forEach(sortNodesByPosition);
+    }
+    return node;
+  };
+
+  // Step 4: Identify the root node using the `is_root` field
   const rootNode = Array.from(nodeMap.values()).find((node) => node.isRoot);
 
-  // Step 4: Return the tree starting from the root node
-  return rootNode || nodeMap.values().next().value; // Return root or fallback to the first node if none found
+  // Step 5: Sort the entire tree starting from the root
+  return rootNode ? sortNodesByPosition(rootNode) : nodeMap.values().next().value;
 }

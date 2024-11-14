@@ -146,8 +146,8 @@ export default function HomePage() {
         {notification.show && (
           <Notification
             icon={<IconX style={{ width: rem(20), height: rem(20) }} />}
-            color="red"
-            title="Error"
+            color={notification.message.includes('successfully') ? 'green' : 'red'} // Use green for success
+            title={notification.message.includes('successfully') ? 'Success' : 'Error'} // Set title accordingly
             onClose={() => setNotification((prev) => ({ ...prev, show: false }))}
             style={{
               position: 'fixed',
