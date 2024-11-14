@@ -8,7 +8,7 @@ from src.database.databaseManager import DatabaseManager
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_modifier import QEPModifier
 from src.database.query_modifier import QueryModifier
-from src.types.qep_types import TypeModification, JoinOrderModification
+from src.custom_types.qep_types import TypeModification, JoinOrderModification
 from src.database.hint_generator import HintConstructor
 
 

@@ -5,7 +5,7 @@ import networkx as nx
 from src.database.databaseManager import DatabaseManager
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_visualizer import QEPVisualizer
-from src.types.qep_types import NodeType, ScanType, JoinType, TypeModification, JoinOrderModification, \
+from src.custom_types.qep_types import NodeType, ScanType, JoinType, TypeModification, JoinOrderModification, \
     JoinOrderModificationSpecced
 from src.settings.filepaths import VIZ_DIR
 

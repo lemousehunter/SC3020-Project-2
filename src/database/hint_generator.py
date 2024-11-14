@@ -3,7 +3,7 @@ from typing import Dict, Set, List, Tuple
 import networkx as nx
 import re
 
-from src.types.qep_types import JoinType, ScanType
+from src.custom_types.qep_types import JoinType, ScanType
 
 
 class HintConstructor:

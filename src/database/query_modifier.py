@@ -19,7 +19,7 @@ if __name__ == "__main__":
     from src.database.qep.qep_visualizer import QEPVisualizer
     from src.settings.filepaths import VIZ_DIR
     from src.database.databaseManager import DatabaseManager
-    from src.types.qep_types import NodeType, ScanType, JoinType, JoinOrderModificationSpecced
+    from src.custom_types.qep_types import NodeType, ScanType, JoinType, JoinOrderModificationSpecced
     from src.database.hint_generator import HintConstructor
 
     # 1. Set up the database and get the original query plan

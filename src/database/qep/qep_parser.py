@@ -4,7 +4,7 @@ from typing import Dict, List, Set, Tuple
 import networkx as nx
 from networkx.algorithms.dag import descendants
 
-from src.types.qep_types import NodeType, ScanType, JoinType
+from src.custom_types.qep_types import NodeType, ScanType, JoinType
 import re
 
 class QEPParser:
