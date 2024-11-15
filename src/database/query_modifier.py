@@ -19,7 +19,7 @@ if __name__ == "__main__":
     from src.database.qep.qep_visualizer import QEPVisualizer
     from src.settings.filepaths import VIZ_DIR
     from src.database.databaseManager import DatabaseManager
-    from src.custom_types.qep_types import NodeType, ScanType, JoinType, JoinOrderModificationSpecced
+    from src.custom_types.qep_types import NodeType, ScanType, JoinType, InterJoinOrderModificationSpecced
     from src.database.hint_generator import HintConstructor
 
     # 1. Set up the database and get the original query plan
@@ -64,21 +64,21 @@ where C.c_custkey = O.o_custkey
     )
 
     # Change the join order of two joins
-    join_order_modification = JoinOrderModificationSpecced(
+    join_order_modification = InterJoinOrderModificationSpecced(
         join_order_1=('l', 'o'),
         join_type_1=JoinType.HASH_JOIN.value,
         join_order_2=('l', 's'),
         join_type_2=JoinType.HASH_JOIN.value
     )
 
-    join_order_modification = JoinOrderModificationSpecced(
+    join_order_modification_1 = InterJoinOrderModificationSpecced(
         join_order_1=('o', 'c'),
         join_type_1=JoinType.NESTED_LOOP.value,
         join_order_2=('l', 's'),
         join_type_2=JoinType.HASH_JOIN.value
     )
 
-    join_order_modification = JoinOrderModificationSpecced(
+    join_order_modification_2 = InterJoinOrderModificationSpecced(
         join_order_1=('o', 'c'),
         join_type_1=JoinType.NESTED_LOOP.value,
         join_order_2=('l', 'o'),
@@ -89,7 +89,8 @@ where C.c_custkey = O.o_custkey
     modifier = QEPModifier(original_graph, ordered_join_pairs, alias_map)
     modifier.add_modification(scan_modification)
     modifier.add_modification(join_modification)
-    modifier.add_modification(join_order_modification)
+    modifier.add_modification(join_order_modification_1)
+    modifier.add_modification(join_order_modification_2)
 
     example_modification_request = {
         'modifications': [

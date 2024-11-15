@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum, auto, EnumMeta
-from typing import Set, Tuple
+from typing import Set, Tuple, List
 
 
 class MetaEnum(EnumMeta):
@@ -55,7 +55,19 @@ class TypeModification:
 
 
 @dataclass
-class JoinOrderModificationSpecced:
+class JoinOrderModificationBase:
+    @staticmethod
+    def is_join(to_check) -> bool:
+        if to_check not in JoinType:
+            return False
+        else:
+            if to_check == "Hash":
+                return False
+            else:
+                return True
+
+@dataclass
+class InterJoinOrderModificationSpecced(JoinOrderModificationBase):
     # Join order modification with specified join custom_types and orders to identify nodes involved
     join_order_1: Tuple[str, str]
     join_type_1: str
@@ -64,8 +76,8 @@ class JoinOrderModificationSpecced:
 
     def __post_init__(self):
         # Validate join custom_types:
-        if self.join_type_1 not in JoinType:
-            if self.join_type_2 not in JoinType:
+        if not self.is_join(self.join_type_1):
+            if not self.is_join(self.join_type_2):
                 raise ValueError(f"Invalid join type: {self.join_type_1} and {self.join_type_2}")
             else:
                 raise ValueError(f"Invalid join type: {self.join_type_1}")
@@ -74,11 +86,22 @@ class JoinOrderModificationSpecced:
 
 
 @dataclass
-class JoinOrderModification:
+class InterJoinOrderModification(JoinOrderModificationBase):
     # Join order modification with node id
     join_node_1_id: str
     join_node_2_id: str
 
+
+@dataclass
+class IntraJoinOrderModificationSpecced:
+    # Join order modification with specified join custom_types and orders to identify nodes involved
+    join_order: Tuple[str, str]
+    join_type: str
+
+
+@dataclass
+class IntraJoinOrderModification:
+    join_node_id: str
 
 if __name__ == "__main__":
     print("Seq Scan" in NodeType)

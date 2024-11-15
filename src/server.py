@@ -8,7 +8,7 @@ from src.database.databaseManager import DatabaseManager
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_modifier import QEPModifier
 from src.database.query_modifier import QueryModifier
-from src.custom_types.qep_types import TypeModification, JoinOrderModification
+from src.custom_types.qep_types import TypeModification, InterJoinOrderModification
 from src.database.hint_generator import HintConstructor
 from src.utils.JSONEncoder import SetEncoder
 
@@ -55,7 +55,7 @@ class QueryPlanManager:
                     node_id=mod.get('node_id', '')
                 )
             elif modification_type == "JoinOrderChange":
-                query_mod = JoinOrderModification(
+                query_mod = InterJoinOrderModification(
                     join_node_1_id=mod.get('join_node_1_id'),
                     join_node_2_id=mod.get('join_node_2_id')
                 )

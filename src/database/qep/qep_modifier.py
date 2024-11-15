@@ -5,8 +5,8 @@ import networkx as nx
 from src.database.databaseManager import DatabaseManager
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_visualizer import QEPVisualizer
-from src.custom_types.qep_types import NodeType, ScanType, JoinType, TypeModification, JoinOrderModification, \
-    JoinOrderModificationSpecced
+from src.custom_types.qep_types import NodeType, ScanType, JoinType, TypeModification, InterJoinOrderModification, \
+    InterJoinOrderModificationSpecced, IntraJoinOrderModification, IntraJoinOrderModificationSpecced
 from src.settings.filepaths import VIZ_DIR
 
 
@@ -19,7 +19,7 @@ class QEPModifier:
             graph: NetworkX DiGraph representing the simplified query execution plan
         """
         self.graph = deepcopy(graph) # Create a copy to preserve the original
-        self.modifications: List[Union[TypeModification, JoinOrderModification, JoinOrderModificationSpecced]] = []
+        self.modifications: List[Union[TypeModification, InterJoinOrderModification, InterJoinOrderModificationSpecced, IntraJoinOrderModification, IntraJoinOrderModificationSpecced]] = []
         self.join_order = deepcopy(join_order) # Create a copy to preserve the original
         self.alias_map = alias_map
         self.condition_keys = ['Filter', 'Join Filter', 'Hash Cond', 'Recheck Cond', 'Index Cond', 'Merge Cond',
@@ -72,7 +72,7 @@ class QEPModifier:
             raise ValueError(f"Node with ID {node_id} not found in the QEP Tree")
         nx.set_node_attributes(self.graph, {node_id: {'node_type': new_type}})
 
-    def add_modification(self, modification: Union[TypeModification, JoinOrderModification, JoinOrderModificationSpecced]):
+    def add_modification(self, modification: Union[TypeModification, InterJoinOrderModification, InterJoinOrderModificationSpecced, IntraJoinOrderModification, IntraJoinOrderModificationSpecced]):
         """
         Add a modification to be applied to the query plan.
 
@@ -200,8 +200,70 @@ class QEPModifier:
             if node_data['is_root']:
                 return node
 
-    def _swap_join_order(self, modification: Union[JoinOrderModification, JoinOrderModificationSpecced]):
-        if isinstance(modification, JoinOrderModification): # get node by id
+    def _swap_intra_join_order(self, modification: Union[IntraJoinOrderModification, IntraJoinOrderModificationSpecced]):
+        if isinstance(modification, IntraJoinOrderModification): # get node by id
+            join_node_id: str = modification.join_node_id
+
+        else: # is JoinOrderModificationSpecced
+            join_node_id: str = self._get_join_node_by_type_and_alias(modification.join_type, modification.join_order)
+
+        table_join_order_1: Union[List, None] = None
+        table_join_order_2: Union[List, None] = None
+
+        # Get table aliases
+        for child in self.graph.successors(join_node_id):
+            # ignore subquery nodes
+            child_node_data = self.graph.nodes(True)[child]
+            if child_node_data.get('_subplan'):
+                continue
+            else:
+                if table_join_order_1 is None:
+                    table_join_order_1 = child_node_data['_join_order']
+                else:
+                    table_join_order_2 = child_node_data['_join_order']
+
+        if table_join_order_1 is None or table_join_order_2 is None:
+            raise ValueError("Could not find table aliases for the join node")
+
+        new_join_order = [
+            table_join_order_2,
+            table_join_order_1
+        ]
+
+        new_join_order_str = self._format_join_order_to_string(new_join_order)
+
+        left_child_node_id = None
+        right_child_node_id = None
+
+        for child_node_id in self.graph.successors(join_node_id):
+            child_data = self.graph.nodes(True)[child_node_id]
+            if child_data.get('position') == 'l':
+                left_child_node_id = child_node_id
+            elif child_data.get('position') == 'r':
+                right_child_node_id = child_node_id
+
+        update_d = {
+            join_node_id: {
+                '_join_order': new_join_order,
+                'join_order': new_join_order_str
+            },
+
+            left_child_node_id: {
+                'position': 'r'
+            },
+
+            right_child_node_id: {
+                'position': 'l'
+            }
+
+        }
+
+        # Update the attributes of the nodes
+        nx.set_node_attributes(self.graph, update_d)
+
+
+    def _swap_join_order(self, modification: Union[InterJoinOrderModification, InterJoinOrderModificationSpecced]):
+        if isinstance(modification, InterJoinOrderModification): # get node by id
             join_node_1_id: str = modification.join_node_1_id
             join_node_2_id: str = modification.join_node_1_id
         else: # is JoinOrderModificationSpecced
@@ -402,18 +464,23 @@ class QEPModifier:
                 for modification in self.modifications:
                     if isinstance(modification, TypeModification):
                         self._update_node_type(modification.node_id, modification.new_type)
-                    else: # is JoinOrderModification
+                    elif isinstance(modification, InterJoinOrderModification): # is InterJoinOrderModification
                         print("applying join order modification id")
                         self._swap_join_order(modification)
+                    else: # is IntraJoinOrderModification
+                        self._swap_intra_join_order(modification)
             else:
                 for modification in self.modifications:
                     if isinstance(modification, TypeModification):
                         matching_nodes = self._find_matching_nodes(modification)
                         for node_id in matching_nodes:
                             self._update_node_type(node_id, modification.new_type)
-                    else: # is JoinOrderModificationSpecced
+                    elif isinstance(modification, InterJoinOrderModificationSpecced): # is InterJoinOrderModificationSpecced
                         print("applying join order modification specced")
                         self._swap_join_order(modification)
+                    else: # is IntraJoinOrderModificationSpecced
+                        self._swap_intra_join_order(modification)
+
         # set positions of nodes
         node_positions_d = self.get_node_positions()
         nx.set_node_attributes(self.graph, node_positions_d)
@@ -482,18 +549,25 @@ if __name__ == "__main__":
     )
 
     # Change the join order of two joins
-    join_order_modification = JoinOrderModificationSpecced(
+    inter_join_order_modification = InterJoinOrderModificationSpecced(
         join_order_1=('o', 'c'),
         join_type_1=JoinType.NESTED_LOOP.value,
         join_order_2=('l', 'o'),
         join_type_2=JoinType.HASH_JOIN.value
     )
 
+    # Change the order of tables in a join
+    intra_join_order_modification = IntraJoinOrderModificationSpecced(
+        join_type=JoinType.NESTED_LOOP.value,
+        join_order=('o', 'c'),
+    )
+
     # 4. Apply modifications
     modifier = QEPModifier(original_graph, jo, alias_map)
     modifier.add_modification(scan_modification)
     modifier.add_modification(join_modification)
-    modifier.add_modification(join_order_modification)
+    modifier.add_modification(inter_join_order_modification)
+    #modifier.add_modification(intra_join_order_modification)
 
     modified_graph = modifier.apply_modifications(False)
 
