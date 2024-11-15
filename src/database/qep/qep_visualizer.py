@@ -92,12 +92,14 @@ class QEPVisualizer:
             return str(value)
         return str(value)
 
-    def _format_node_attributes(self, attributes: dict) -> str:
+    def _format_node_attributes(self, node_id, attributes: dict) -> str:
         """Format all node attributes except those starting with '_' and node_type."""
         formatted_attrs = []
 
         # Get node type first (it will be displayed separately)
         node_type = attributes.get('node_type', 'Unknown')
+
+        formatted_attrs.append(f"ID: {node_id}")
 
         # Format remaining attributes
         for key, value in sorted(attributes.items()):
@@ -159,7 +161,7 @@ class QEPVisualizer:
 
         # Create labels with all attributes
         labels = {
-            node: self._format_node_attributes(data)
+            node: self._format_node_attributes(node, data)
             for node, data in self.graph.nodes(data=True)
         }
 

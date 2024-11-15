@@ -16,6 +16,14 @@ class QEPParser:
                                'Cache Key']
         self.lowest_level = 0
 
+    def map_subquery_aliases_to_alternative(self, subquery_alias) -> str:
+        """Map subquery alias to alternative."""
+        table_name = self.alias_map[subquery_alias]
+        print("table_name:", table_name)
+        for alias, name in self.alias_map.items():
+            if name == table_name and alias != subquery_alias:
+                return alias
+
     def _get_single_join_pair(self, node_id: str) -> Tuple[str, str]:
         node_data = self.graph.nodes(data=True)[node_id]
         condition_found = False
@@ -51,7 +59,15 @@ class QEPParser:
                             for attribute in self.condition_keys: # get condition from descendants
                                 if attribute in descendant_node_data and attribute != "Join Filter" and attribute != 'Cache Key':
                                     condition_aliases = set(self._extract_aliases_from_condition(descendant_node_data[attribute]))
-                                    condition_aliases = condition_aliases.union(descendant_node_data['aliases']) # add aliases of descendant node
+                                    print("self.alias_map:", self.alias_map)
+                                    descendant_alias = descendant_node_data['aliases']
+                                    if len(descendant_alias) == 1:
+                                        descendant_alias = next(iter(descendant_alias))
+                                        print("descendant_node_data:", descendant_node_data)
+                                        if descendant_node_data["_subplan"]:
+                                            descendant_alias = set(self.map_subquery_aliases_to_alternative(descendant_alias))
+                                        print('descendant_alias:', descendant_alias)
+                                    condition_aliases = condition_aliases.union(descendant_alias) # add aliases of descendant node
                                     if len(condition_aliases) > 1: # if condition has more than one alias, return it
                                         print("non join descendant join condition:", descendant_node_data[attribute])
                                         print("aliases:", condition_aliases)
@@ -94,7 +110,9 @@ class QEPParser:
                     else:
                         if 'Join Filter' in node_data.keys():
                             join_pair = tuple(self._extract_aliases_from_condition(node_data['Join Filter']))
+                            print("join pair from Join Filter:", join_pair)
                         else:
+                            _join_order = node_data['_join_order']
                             if len(_join_order) == 2:
                                 join_pair = tuple(_join_order)
                                 print("2 length join pair:", join_pair)
@@ -385,7 +403,7 @@ class QEPParser:
         #print("join_aliases_d:", join_aliases_d)
         return join_aliases_d
 
-    def parse(self, qep_data: List) -> Tuple[nx.DiGraph, List, Dict[str, str]]:
+    def parse(self, qep_data: List) -> Tuple[nx.DiGraph, List, Dict[str, str], Dict[Tuple[str, str], str]]:
         """Parse the QEP data into a networkX graph."""
         self.graph.clear()
 
@@ -393,6 +411,12 @@ class QEPParser:
 
         # Parse the root node, the parse_node function will recursively be called
         self._parse_node(plan, node_level=0, parent_node_id=None)
+
+        # Inherit Subplan trait
+        for node_id, data in self.graph.nodes(data=True):
+            if data['_subplan']:
+                for child in descendants(self.graph, node_id):
+                    nx.set_node_attributes(self.graph, {child: {'_subplan': True}})
 
         # Resolve table names for aliases used:
         for node_id, data in self.graph.nodes(data=True):
@@ -447,7 +471,13 @@ class QEPParser:
         # Set join node aliases
         nx.set_node_attributes(self.graph, join_node_aliases)
 
-        return self.graph, ordered_join_pairs, self.alias_map
+        join_node_id_map = {}
+
+        # Return the node ids for the ordered join pairs
+        for join_pair, node_id in ordered_join_pairs:
+            join_node_id_map[join_pair] = node_id
+
+        return self.graph, ordered_join_pairs, self.alias_map, join_node_id_map
 
 
 if __name__ == "__main__":
@@ -476,7 +506,7 @@ if __name__ == "__main__":
 
     # 2. Parse the original plan
     parser = QEPParser()
-    original_graph, ordered_join_pairs, alias_map = parser.parse(qep_data)
+    original_graph, ordered_join_pairs, alias_map, join_id  = parser.parse(qep_data)
 
     # 3. Visualize the original plan
     QEPVisualizer(original_graph).visualize(VIZ_DIR / "original_qep.png")

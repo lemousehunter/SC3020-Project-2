@@ -65,7 +65,22 @@ where C.c_custkey = O.o_custkey
         node_id="SOMESTRING"
     )
 
+    # Change the join order of two joins
+    join_order_modification = InterJoinOrderModificationSpecced(
+        join_order_1=('l', 'o'),
+        join_type_1=JoinType.HASH_JOIN.value,
+        join_order_2=('l', 's'),
+        join_type_2=JoinType.HASH_JOIN.value
+    )
+
     join_order_modification_1 = InterJoinOrderModificationSpecced(
+        join_order_1=('o', 'c'),
+        join_type_1=JoinType.NESTED_LOOP.value,
+        join_order_2=('l', 's'),
+        join_type_2=JoinType.HASH_JOIN.value
+    )
+
+    join_order_modification_2 = InterJoinOrderModificationSpecced(
         join_order_1=('o', 'c'),
         join_type_1=JoinType.NESTED_LOOP.value,
         join_order_2=('l', 's'),
@@ -77,7 +92,7 @@ where C.c_custkey = O.o_custkey
     modifier.add_modification(scan_modification)
     modifier.add_modification(join_modification)
     modifier.add_modification(join_order_modification_1)
-    #modifier.add_modification(join_order_modification_2)
+    modifier.add_modification(join_order_modification_2)
 
     example_modification_request = {
         'modifications': [
@@ -98,7 +113,7 @@ where C.c_custkey = O.o_custkey
         ]
     }
 
-    modified_graph, modifications = modifier.apply_modifications(False)
+    modified_graph, mod_lst = modifier.apply_modifications(False)
     QEPVisualizer(modified_graph).visualize(VIZ_DIR / "modified_pre-explained_qep_tree.png")
 
     # 5 Generate Hint
@@ -119,6 +134,5 @@ where C.c_custkey = O.o_custkey
     VIZ_DIR.mkdir(parents=True, exist_ok=True)
     QEPVisualizer(tree).visualize(VIZ_DIR / "modified_explained_qep_tree.png")
 
-    # 8. Change Checker
-    # Check if the query has been modified correctly
-    QEPChangeChecker().check(tree, modified_graph, modifications, False)
+    # 8. Print Change List
+    print(QEPChangeChecker().check(tree, modified_graph, mod_lst, identify_by_node_id=False))

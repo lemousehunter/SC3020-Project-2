@@ -3,6 +3,7 @@ from typing import List, Tuple, Union, Dict
 from collections import OrderedDict
 import networkx as nx
 from src.database.databaseManager import DatabaseManager
+from src.database.qep.qep_change_checker import QEPChangeChecker
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_visualizer import QEPVisualizer
 from src.custom_types.qep_types import NodeType, ScanType, JoinType, TypeModification, InterJoinOrderModification, \
@@ -52,7 +53,7 @@ class QEPModifier:
             elif modification.node_type == NodeType.JOIN:
                 # print("mod node type:", modification.node_type)
                 # For join nodes, check if it involves the specified tables
-                node_table_aliases = set(data.get('_join_table_aliases', []))
+                node_table_aliases = set(data.get('aliases', []))
                 print("node_table_aliases:", node_table_aliases)
                 if (node_type == modification.original_type and
                         len(node_table_aliases.intersection(modification.tables)) == len(modification.tables)):
@@ -449,7 +450,7 @@ class QEPModifier:
                 if attr in self.condition_keys:
                     del self.graph.nodes[node][attr]
 
-    def apply_modifications(self, match_node_by_id: bool = True) -> nx.DiGraph:
+    def apply_modifications(self, match_node_by_id: bool = True) -> Tuple[nx.DiGraph, List]:
         """
         Apply all stored modifications to the query plan graph.
 
@@ -488,7 +489,7 @@ class QEPModifier:
         # remove conditions from nodes
         self.remove_cond_attributes()
         self.clear_costs()
-        return self.graph
+        return self.graph, self.modifications
 
     def reset(self):
         """Reset modifications list."""
@@ -527,7 +528,7 @@ if __name__ == "__main__":
 
     # 2. Parse the original plan
     parser = QEPParser()
-    original_graph, jo, alias_map = parser.parse(qep_data)
+    original_graph, jo, alias_map, join_node_id_map = parser.parse(qep_data)
 
     # 3. Create modifications
     # Change the sequential scan on customer table to an index scan
@@ -569,7 +570,7 @@ if __name__ == "__main__":
     modifier.add_modification(inter_join_order_modification)
     #modifier.add_modification(intra_join_order_modification)
 
-    modified_graph = modifier.apply_modifications(False)
+    modified_graph, modification_lst = modifier.apply_modifications(False)
 
     # 5. Visualize the modified graph
     visualizer = QEPVisualizer(modified_graph).visualize(VIZ_DIR / "modified_qep_tree.png")
