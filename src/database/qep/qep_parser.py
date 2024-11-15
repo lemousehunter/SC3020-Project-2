@@ -171,6 +171,7 @@ class QEPParser:
         """Parse a single node in the QEP data."""
         # Setup node data first
         """Parse a single node and its children."""
+
         node_id = str(uuid.uuid4())
         tables = set()
         aliases = set()
@@ -403,7 +404,22 @@ class QEPParser:
         #print("join_aliases_d:", join_aliases_d)
         return join_aliases_d
 
-    def parse(self, qep_data: List) -> Tuple[nx.DiGraph, List, Dict[str, str], Dict[Tuple[str, str], str]]:
+    @staticmethod
+    def _get_node_id_from_join_on(join_on: Tuple[str, str], join_node_id_map: Dict) -> str:
+        print("join_node_id_map:", join_node_id_map)
+        return join_node_id_map[join_on]
+
+    def _replace_node_id_from_join_on(self, join_node_id_map: Dict):
+        node_replace = {}
+        for node_id, node_data in self.graph.nodes(data=True):
+            if 'join_on' in node_data:
+                node_join_on = node_data.get('join_on')
+                og_node_id = self._get_node_id_from_join_on(node_join_on, join_node_id_map)
+                node_replace[node_id] = og_node_id
+
+        return node_replace
+
+    def parse(self, qep_data: List, join_node_id_map: Dict) -> Tuple[nx.DiGraph, List, Dict[str, str], Dict[Tuple[str, str], str]]:
         """Parse the QEP data into a networkX graph."""
         self.graph.clear()
 
@@ -471,11 +487,23 @@ class QEPParser:
         # Set join node aliases
         nx.set_node_attributes(self.graph, join_node_aliases)
 
-        join_node_id_map = {}
+        print("join_node_id_map:", join_node_id_map)
 
-        # Return the node ids for the ordered join pairs
-        for join_pair, node_id in ordered_join_pairs:
-            join_node_id_map[join_pair] = node_id
+        if join_node_id_map:
+            # Replace node id from join on
+            node_replace = self._replace_node_id_from_join_on(
+                join_node_id_map
+            )
+            self.graph = nx.relabel_nodes(self.graph, node_replace)
+
+            # Replace node ids in ordered join pairs
+            ordered_join_pairs = [(join_pair, node_replace[node_id]) for join_pair, node_id in ordered_join_pairs]
+        else:
+            join_node_id_map = {}
+
+            # Return the node ids for the ordered join pairs
+            for join_pair, node_id in ordered_join_pairs:
+                join_node_id_map[join_pair] = node_id
 
         return self.graph, ordered_join_pairs, self.alias_map, join_node_id_map
 

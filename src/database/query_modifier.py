@@ -43,7 +43,7 @@ where C.c_custkey = O.o_custkey
 
     # 2. Parse the original plan
     parser = QEPParser()
-    original_graph, ordered_join_pairs, alias_map, join_node_id_map = parser.parse(qep_data)
+    original_graph, ordered_join_pairs, alias_map, join_node_id_map = parser.parse(qep_data, None)
     QEPVisualizer(original_graph).visualize(VIZ_DIR / "original_qep.png")
 
     # 3. Create modifications
@@ -68,7 +68,7 @@ where C.c_custkey = O.o_custkey
     join_order_modification_1 = InterJoinOrderModificationSpecced(
         join_order_1=('o', 'c'),
         join_type_1=JoinType.NESTED_LOOP.value,
-        join_order_2=('l', 's'),
+        join_order_2=('l', 'o'),
         join_type_2=JoinType.HASH_JOIN.value
     )
 
@@ -115,7 +115,7 @@ where C.c_custkey = O.o_custkey
     # 7. Visualize the modified graph
     res = db_manager.get_qep(modified_query)
     q = QEPParser()
-    tree, new_ordered_join_pairs, new_alias_map, new_join_node_id_map = q.parse(res)
+    tree, new_ordered_join_pairs, new_alias_map, new_join_node_id_map = q.parse(res, join_node_id_map)
     VIZ_DIR.mkdir(parents=True, exist_ok=True)
     QEPVisualizer(tree).visualize(VIZ_DIR / "modified_explained_qep_tree.png")
 
