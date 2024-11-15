@@ -1,8 +1,8 @@
 {
   "TPC-H": {
     "DB_USER": "postgres",
-    "DB_PASSWORD": "p",
-    "DB_HOST": "localhost",
+    "DB_PASSWORD": "A+sc3020",
+    "DB_HOST": "34.118.200.228",
     "DB_PORT": 5432,
     "DB": "TPC-H"
   }
