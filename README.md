@@ -81,7 +81,7 @@ Please re-run the **PowerShell** as **Administrator** and paste the following co
 Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope CurrentUser
 ```
 
-The you will be asked:
+Then you will be asked:
 ```
 Execution Policy Change
 The execution policy helps protect you from scripts that you do not trust. Changing the execution policy might expose
@@ -108,7 +108,7 @@ C:\Users\_____\OneDrive\Documents\WindowsPowerShell\Microsoft.PowerShell_profile
 Navigate to that file:
 
 *Note:* If the file does not exist, please create the folders and files that replicate the output value:<br>
-e.g. Let's say your folder just end at `C:\Users\_____\OneDrive\Documents\`
+e.g. Let's say your folder just end at `C:\Users\_____\OneDrive\Documents\`<br>
 You can create a new folder called `WindowsPowerShell` in it and create a file `Microsoft.PowerShell_profile.ps1` in `WindowsPowerShell` folder.
 
 Open the `Microsoft.PowerShell_profile.ps1` with notepad and add the following line at the end of the file.
