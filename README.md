@@ -116,13 +116,45 @@ Open the `Microsoft.PowerShell_profile.ps1` with notepad and add the following l
 fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
 ```
 
-**Close** and **Re-open** the PowerShell then type:
+**Close** and **Re-open** the **PowerShell** then type:
 ```
 node -v
 npm -v
 ```
 
 If they run properly and return the version installed then you are good to go.
+
+#### Step 4: Install required `node.js` packages for the program to run properly
+
+In **PowerShell** change the directory to our project folder using `cd` command.
+
+Then
+```
+cd sql-visualizer
+```
+
+If the following prompt appear:
+```
+Can't find an installed Node version matching v20.9.0.
+Do you want to install it? answer [y/N]:
+```
+
+Type `y` and press **Enter**
+
+Then type:
+
+```
+npm install -g yarn
+```
+
+```
+yarn install
+```
+
+```
+npm run dev
+```
+
 
 
 
