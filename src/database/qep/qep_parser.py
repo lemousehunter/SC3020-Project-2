@@ -504,6 +504,7 @@ class QEPParser:
             # Return the node ids for the ordered join pairs
             for join_pair, node_id in ordered_join_pairs:
                 join_node_id_map[join_pair] = node_id
+                join_node_id_map[(join_pair[-1], join_pair[0])] = node_id
 
         return self.graph, ordered_join_pairs, self.alias_map, join_node_id_map
 

@@ -68,7 +68,7 @@ where C.c_custkey = O.o_custkey
     join_order_modification_1 = InterJoinOrderModificationSpecced(
         join_order_1=('o', 'c'),
         join_type_1=JoinType.NESTED_LOOP.value,
-        join_order_2=('l', 'o'),
+        join_order_2=('l', 's'),
         join_type_2=JoinType.HASH_JOIN.value
     )
 
