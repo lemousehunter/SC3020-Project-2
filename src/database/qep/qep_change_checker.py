@@ -125,7 +125,7 @@ class QEPChangeChecker:
                     changes_lst.append((modification, change))
 
                 else:
-                    raise ValueError("Invalid modification type")
+                    raise ValueError("Invalid modification type", modification)
         else:
             for modification in modification_lst:  # use specced modifications
                 if isinstance(modification, TypeModification):
