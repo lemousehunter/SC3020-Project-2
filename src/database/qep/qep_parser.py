@@ -422,17 +422,21 @@ class QEPParser:
     def _get_swappability(self) -> Dict[str, Dict[str, bool]]:
         swappablity_d = {}
         for node_id, node_data in self.graph.nodes(True):
-            # Check if its join node:
-            if "Join" in node_data['node_type'] or node_data['node_type'] == "Nested Loop":
-                swappablity_d[node_id] = {'_swappable': True}
-            else: # if not join node
-                # Check if parent is join
-                parent = list(self.graph.predecessors(node_id))[0]
-                parent_node_data = self.graph.nodes(True)[parent]
-                if "Join" in parent_node_data['node_type'] or parent_node_data['node_type'] == "Nested Loop":
+            # Check if it is a subquery node:
+            if node_data['_subplan']:
+                swappablity_d[node_id] = {'_swappable': False}
+            else:
+                # Check if its join node:
+                if "Join" in node_data['node_type'] or node_data['node_type'] == "Nested Loop":
                     swappablity_d[node_id] = {'_swappable': True}
-                else:
-                    swappablity_d[node_id] = {'_swappable': False}
+                else: # if not join node
+                    # Check if parent is join
+                    parent = list(self.graph.predecessors(node_id))[0]
+                    parent_node_data = self.graph.nodes(True)[parent]
+                    if "Join" in parent_node_data['node_type'] or parent_node_data['node_type'] == "Nested Loop":
+                        swappablity_d[node_id] = {'_swappable': True}
+                    else:
+                        swappablity_d[node_id] = {'_swappable': False}
         return swappablity_d
 
 
