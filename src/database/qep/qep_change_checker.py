@@ -114,15 +114,15 @@ class QEPChangeChecker:
             for modification in modification_lst:
                 if isinstance(modification, TypeModification):
                     change = self._check_type_change(modification, modification.node_id)
-                    changes_lst.append((modification, change))
+                    changes_lst.append((modification.node_id, change))
 
                 elif isinstance(modification, InterJoinOrderModification):
                     change = self._check_inter_join_order_change(modification, modification.join_node_1_id, modification.join_node_2_id)
-                    changes_lst.append((modification, change))
+                    changes_lst.append(((modification.join_node_1_id, modification.join_node_2_id), change))
 
                 elif isinstance(modification, IntraJoinOrderModification):
                     change = self._check_intra_join_order_change(modification, modification.join_node_id)
-                    changes_lst.append((modification, change))
+                    changes_lst.append((modification.join_node_id, change))
 
                 else:
                     raise ValueError("Invalid modification type id", modification)
@@ -131,7 +131,7 @@ class QEPChangeChecker:
                 if isinstance(modification, TypeModification):
                     node_id = self._get_node_id(modification)
                     change = self._check_type_change(modification, node_id)
-                    changes_lst.append((modification, change))
+                    changes_lst.append((node_id, change))
 
                 elif isinstance(modification, InterJoinOrderModificationSpecced):
                     join_node_1_id, join_node_2_id = self._get_node_id(modification)
@@ -140,12 +140,12 @@ class QEPChangeChecker:
                         change = False
                     else:
                         change = self._check_inter_join_order_change(modification, join_node_1_id, join_node_2_id)
-                    changes_lst.append((modification, change))
+                    changes_lst.append((join_node_1_id, change))
 
                 elif isinstance(modification, IntraJoinOrderModificationSpecced):
                     join_node_id = self._get_node_id(modification)
                     change = self._check_intra_join_order_change(modification, join_node_id)
-                    changes_lst.append((modification, change))
+                    changes_lst.append((join_node_id, change))
 
                 else:
                     raise ValueError("Invalid modification type", modification)
