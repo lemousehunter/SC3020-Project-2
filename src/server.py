@@ -92,7 +92,7 @@ class QueryPlanManager:
 
         modified_cost = self.parser.get_total_cost()
 
-        changes_lst = self.query_checker.check(updated_graph, modified_graph, modifications)
+        changes_lst = self.query_checker.check(updated_graph, modified_graph, mods_lst)
 
         return {
             "modified_query": modified_query,
