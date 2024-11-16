@@ -148,6 +148,6 @@ class QEPChangeChecker:
                     changes_lst.append((modification, change))
 
                 else:
-                    raise ValueError("Invalid modification type")
+                    raise ValueError("Invalid modification type", modification)
         print(changes_lst)
         return changes_lst
