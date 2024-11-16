@@ -130,6 +130,7 @@ class QueryPlanManager:
             data_dict["_isLeaf"] = len(list(graph.neighbors(node_id))) == 0
             data_dict["_id"] = node_id
             data_dict["_is_subquery_node"] = data.get('_subplan', False)
+            data_dict["_swappable"] = data.get('_swappable', False)
 
             nodes.append(data_dict)
 

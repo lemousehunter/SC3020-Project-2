@@ -419,6 +419,23 @@ class QEPParser:
 
         return node_replace
 
+    def _get_swappability(self) -> Dict[str, Dict[str, bool]]:
+        swappablity_d = {}
+        for node_id, node_data in self.graph.nodes(True):
+            # Check if its join node:
+            if "Join" in node_data['node_type'] or node_data['node_type'] == "Nested Loop":
+                swappablity_d[node_id] = {'_swappable': True}
+            else: # if not join node
+                # Check if parent is join
+                parent = list(self.graph.predecessors(node_id))[0]
+                parent_node_data = self.graph.nodes(True)[parent]
+                if "Join" in parent_node_data['node_type'] or parent_node_data['node_type'] == "Nested Loop":
+                    swappablity_d[node_id] = {'_swappable': True}
+                else:
+                    swappablity_d[node_id] = {'_swappable': False}
+        return swappablity_d
+
+
     def parse(self, qep_data: List, join_node_id_map: Dict) -> Tuple[nx.DiGraph, List, Dict[str, str], Dict[Tuple[str, str], str]]:
         """Parse the QEP data into a networkX graph."""
         self.graph.clear()
@@ -505,6 +522,11 @@ class QEPParser:
             for join_pair, node_id in ordered_join_pairs:
                 join_node_id_map[join_pair] = node_id
                 join_node_id_map[(join_pair[-1], join_pair[0])] = node_id
+
+        swap_d = self._get_swappability()
+
+        # set swappability as node attribute
+        nx.set_node_attributes(self.graph, swap_d)
 
         return self.graph, ordered_join_pairs, self.alias_map, join_node_id_map
 
