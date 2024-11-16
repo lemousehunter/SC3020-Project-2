@@ -129,6 +129,7 @@ class QueryPlanManager:
             data_dict["_join_or_scan"] = type_name
             data_dict["_isLeaf"] = len(list(graph.neighbors(node_id))) == 0
             data_dict["_id"] = node_id
+            data_dict["_is_subquery_node"] = data.get('_subplan', False)
 
             nodes.append(data_dict)
 
@@ -146,7 +147,13 @@ class DatabaseServer:
     def __init__(self):
         self.app = Flask(__name__)
         self.app.json = SetEncoder(self.app)
-        CORS(self.app)
+        CORS(self.app, resources={
+            r"/api/*": {
+                "origins": ["http://localhost:3000"],  # Your NextJS development server
+                "methods": ["GET", "POST", "OPTIONS"],
+                "allow_headers": ["Content-Type"]
+            }
+        })
         self.db_connection: Optional[DatabaseManager] = None
         self.query_plan_manager = QueryPlanManager()
         self._register_routes()
