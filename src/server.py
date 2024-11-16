@@ -57,15 +57,17 @@ class QueryPlanManager:
                     tables=set(mod.get('tables', [])),
                     node_id=mod.get('node_id', '')
                 )
+                modification_lst.append(query_mod)
             elif modification_type == "JoinOrderChange":
                 query_mod = InterJoinOrderModification(
                     join_node_1_id=mod.get('join_node_1_id'),
                     join_node_2_id=mod.get('join_node_2_id')
                 )
+                modification_lst.append(query_mod)
             else:
                 raise ValueError(f"Invalid modification type: {modification_type}")
             qep_modifier.add_modification(query_mod)
-        modification_lst.append(query_mod)
+
         modified_graph, mods_lst = qep_modifier.apply_modifications()
 
         return modified_graph, modification_lst
