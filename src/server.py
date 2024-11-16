@@ -29,15 +29,16 @@ class QueryPlanManager:
         self.alias_map: Optional[Dict[str, str]] = None
         self.parser = QEPParser()
         self.preview_graph: Optional[nx.DiGraph]  = None
+        self.join_node_id_map: Optional[Dict[str, str]] = None
 
     def generate_plan(self, query: str, db_connection: DatabaseManager) -> Dict:
         """Generate query execution plan"""
         qep_data = db_connection.get_qep(query)
-        self.original_graph, self.ordered_relation_pairs, self.alias_map = self.parser.parse(qep_data)
+        self.original_graph, self.ordered_relation_pairs, self.alias_map, self.join_node_id_map = self.parser.parse(qep_data, self.join_node_id_map)
 
         return self._convert_graph_to_dict(self.original_graph)
 
-    def _modify_graph(self, modifications: List[Dict]):
+    def _modify_graph(self, modifications: List[Dict]) -> Tuple[nx.DiGraph, List]:
         if not self.original_graph:
             raise ValueError("No original graph available")
 
@@ -63,9 +64,9 @@ class QueryPlanManager:
                 raise ValueError(f"Invalid modification type: {modification_type}")
             qep_modifier.add_modification(query_mod)
 
-        modified_graph = qep_modifier.apply_modifications()
+        modified_graph, mods_lst = qep_modifier.apply_modifications()
 
-        return modified_graph
+        return modified_graph, mods_lst
 
 
     def modify_plan(self, query: str, modifications: List[Dict], db_connection: DatabaseManager) -> Dict:
@@ -73,15 +74,15 @@ class QueryPlanManager:
 
         original_cost = self.parser.get_total_cost()
 
-        modified_graph = self._modify_graph(modifications)
+        modified_graph, mods_lst = self._modify_graph(modifications)
 
         # Generate hints
-        hints, hint_list = HintConstructor(modified_graph).generate_hints()
+        hints, hint_list, hint_expl = HintConstructor(modified_graph, self.alias_map).generate_hints()
         modified_query = QueryModifier(query=query, hint=hints).modify()
 
         # Get updated plan
         updated_qep = db_connection.get_qep(modified_query)
-        updated_graph, updated_ordered_relation_pairs, updated_alias_map = self.parser.parse(updated_qep)
+        updated_graph, updated_ordered_relation_pairs, updated_alias_map, updated_join_node_id_map = self.parser.parse(updated_qep, self.join_node_id_map)
 
         modified_cost = self.parser.get_total_cost()
 
@@ -92,12 +93,12 @@ class QueryPlanManager:
                 "modified": modified_cost
             },
             "graph": self._convert_graph_to_dict(updated_graph),
-            "hints": {hint: "Some Explanation" for hint in hint_list}
+            "hints": hint_expl
         }
 
     def preview_swap(self, mod_lst: List) -> Dict:
         """Preview the swap of two join nodes"""
-        modified_graph = self._modify_graph(mod_lst)
+        modified_graph, mods_lst = self._modify_graph(mod_lst)
 
         modified_graph_json = self._convert_graph_to_dict(modified_graph)
 

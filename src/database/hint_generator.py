@@ -144,23 +144,30 @@ class HintConstructor:
             hint_explain_d[hint] = hint_explanation
         return hint_explain_d
 
-    def generate_hints(self) -> Tuple[str, List[str]]:
+    def generate_hints(self) -> Tuple[str, List[str], Dict[str, str]]:
         """Generate complete hint string."""
         # Generate all hints
         hints = []
+        hint_expl_d = {}
 
         # Add join order hint
         join_order = self._construct_join_order()
         if join_order:
             hints.append(join_order)
+            hint_expl_d | self._generate_explain([join_order])
 
         # Add join type hints
         join_hints = self._get_join_hints()
-        hints.extend(join_hints)
+        if join_hints:
+            hints.extend(join_hints)
+            hint_expl_d | self._generate_explain(join_hints)
 
         # Add scan hints
         scan_hints = self._get_scan_hints()
-        hints.extend(scan_hints)
+        if scan_hints:
+            hints.extend(scan_hints)
+            hint_expl_d | self._generate_explain(scan_hints)
+            hints.extend(scan_hints)
 
         # Combine all hints
-        return f"/*+ {' '.join(hints)} */", hints
+        return f"/*+ {' '.join(hints)} */", hints, hint_expl_d
