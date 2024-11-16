@@ -68,6 +68,8 @@ class QueryPlanManager:
                 raise ValueError(f"Invalid modification type: {modification_type}")
             qep_modifier.add_modification(query_mod)
 
+        print("modifications:", modification_lst)
+
         modified_graph, mods_lst = qep_modifier.apply_modifications()
 
         return modified_graph, modification_lst
