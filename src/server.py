@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Union
 import networkx as nx
 from dataclasses import dataclass
 
@@ -9,7 +9,8 @@ from src.database.qep.qep_change_checker import QEPChangeChecker
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_modifier import QEPModifier
 from src.database.query_modifier import QueryModifier
-from src.custom_types.qep_types import TypeModification, InterJoinOrderModification
+from src.custom_types.qep_types import TypeModification, InterJoinOrderModification, IntraJoinOrderModification, \
+    JoinType
 from src.database.hint_generator import HintConstructor
 from src.utils.JSONEncoder import SetEncoder
 
@@ -40,6 +41,38 @@ class QueryPlanManager:
 
         return self._convert_graph_to_dict(self.original_graph)
 
+    @staticmethod
+    def _is_join(node_type: str):
+        if node_type in JoinType and node_type != "Hash":
+            return True
+        else:
+            return False
+
+    def _determine_join_order_change_type(self, mod: Dict) -> Union[IntraJoinOrderModification, InterJoinOrderModification]:
+        node_1_id = mod['node_1_id']
+        node_2_id = mod['node_2_id']
+
+        node_1_data = self.original_graph.nodes(True)[node_1_id]
+        node_2_data = self.original_graph.nodes(True)[node_2_id]
+
+        node_1_type = node_1_data['node_type']
+        node_2_type = node_2_data['node_type']
+
+        if self._is_join(node_1_type) and self._is_join(node_2_type): # if both is Join type
+            # then is InterJoinChange
+            query_mod = InterJoinOrderModification(
+                join_node_1_id=node_1_id,
+                join_node_2_id=node_2_id
+            )
+        else: # if either one is not join type, then is IntraJoinChange
+            # get parent of either will do
+            parent = list(self.original_graph.predecessors(node_1_id))[0]
+            query_mod =IntraJoinOrderModification(
+                join_node_id=parent
+            )
+
+        return query_mod
+
     def _modify_graph(self, modifications: List[Dict]) -> Tuple[nx.DiGraph, List]:
         if not self.original_graph:
             raise ValueError("No original graph available")
@@ -59,11 +92,7 @@ class QueryPlanManager:
                 )
                 modification_lst.append(query_mod)
             elif modification_type == "JoinOrderChange":
-                query_mod = InterJoinOrderModification(
-                    join_node_1_id=mod.get('join_node_1_id'),
-                    join_node_2_id=mod.get('join_node_2_id')
-                )
-                modification_lst.append(query_mod)
+                query_mod = self._determine_join_order_change_type(mod)
             else:
                 raise ValueError(f"Invalid modification type: {modification_type}")
             qep_modifier.add_modification(query_mod)
@@ -130,7 +159,7 @@ class QueryPlanManager:
             data_dict["_isLeaf"] = len(list(graph.neighbors(node_id))) == 0
             data_dict["_id"] = node_id
             data_dict["_is_subquery_node"] = data.get('_subplan', False)
-            data_dict["swappable"] = data.get('_swappable', False)
+            data_dict["_swappable"] = data.get('_swappable', False)
 
             nodes.append(data_dict)
 
