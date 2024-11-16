@@ -127,9 +127,9 @@ class HintConstructor:
                 _split = hint.split("(")
                 join_type = _split[0]
                 relations_lst = _split[-1].replace(')', '').split(" ")
-                relations_str = " ,".join(relations_lst)
+                relations_str = ", ".join(relations_lst)
                 tables_lst = [self.alias_map[relation] for relation in relations_lst]
-                tables_str = " ,".join(tables_lst)
+                tables_str = ", ".join(tables_lst)
                 hint_explanation = f"This hint specifies that the optimizer should use a {join_type} on the relations with aliases {relations_str} corresponding to tables {tables_str}."
             elif "LEADING" in hint: # is join order hint
                 join_pairs = self._parse_nested_expression(hint)
