@@ -170,8 +170,8 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
         console.log('API Response:', responseData);
 
         const modifiedSql = responseData.modified_sql_query || '';
-        const originalCost = responseData.cost_comparison?.original_cost || 0;
-        const modifiedCost = responseData.cost_comparison?.modified_cost || 0;
+        const originalCost = responseData.cost_comparison?.original || 'Error';
+        const modifiedCost = responseData.cost_comparison?.modified || 'Error';
         const updatedNetworkXObject = responseData.updated_networkx_object;
         const hints = responseData.hints || {};
 
@@ -224,7 +224,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
     const strokeColor = isSelected && nodeDatum._join_or_scan !== 'Unknown' ? '#FF4500' : '#000';
     const textColor = '#000';
 
-    // List of attributes to display (excluding unwanted ones like `id`, `is_root`, `children`)
+    // List of attributes to display in table format
     const allowedAttributes = [
       'node_type',
       'cost',
@@ -237,38 +237,60 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
       .filter(([key]) => allowedAttributes.includes(key))
       .map(([key, value]) => ({ key, value }));
 
-    const baseHeight = 60;
-    const lineHeight = 18;
-    const totalHeight = baseHeight + displayAttributes.length * lineHeight;
+    const rowHeight = 20; // Height for each row in the table
+    const tablePadding = 10; // Padding around the table contents
+
+    // Calculate dynamic width based on the longest text
+    const maxKeyLength = Math.max(...displayAttributes.map((attr) => attr.key.length));
+    const maxValueLength = Math.max(...displayAttributes.map((attr) => String(attr.value).length));
+    const calculatedWidth = Math.max(200, (maxKeyLength + maxValueLength) * 8); // Adjust multiplier as needed
+
+    const totalHeight = tablePadding * 2 + displayAttributes.length * rowHeight + 20;
 
     return (
       <g onClick={() => handleNodeClick(hierarchyPointNode)}>
+        {/* Background for the table */}
         <rect
-          x="-75"
+          x={-calculatedWidth / 2 - tablePadding}
           y={-totalHeight / 2}
-          width="150"
+          width={calculatedWidth + tablePadding * 2}
           height={totalHeight}
-          rx="15"
+          rx="10"
           fill={fillColor}
           stroke={strokeColor}
           strokeWidth={isSelected ? 3 : 1}
         />
+
+        {/* Table Header */}
         <text
           x="0"
-          y={-totalHeight / 2 + 20}
-          style={{ fontSize: 18, textAnchor: 'middle', fill: textColor }}
+          y={-totalHeight / 2 + tablePadding + rowHeight / 2}
+          style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
         >
           {nodeDatum.node_type || 'Unknown Type'}
         </text>
+
+        {/* Key-Value Rows */}
         {displayAttributes.map((attr, index) => (
-          <text
-            key={index}
-            x="0"
-            y={-totalHeight / 2 + 40 + index * lineHeight}
-            style={{ fontSize: 14, textAnchor: 'middle', fill: textColor }}
-          >
-            {`${attr.key}: ${attr.value}`}
-          </text>
+          <g key={index}>
+            {/* Key Column */}
+            <text
+              x={-calculatedWidth / 2 + tablePadding}
+              y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
+              style={{ fontSize: 15, textAnchor: 'start', fill: textColor }}
+            >
+              {attr.key}:
+            </text>
+
+            {/* Value Column */}
+            <text
+              x={calculatedWidth / 2 - tablePadding}
+              y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
+              style={{ fontSize: 15, textAnchor: 'end', fill: textColor }}
+            >
+              {String(attr.value)} {/* Ensure value is a string */}
+            </text>
+          </g>
         ))}
       </g>
     );
@@ -369,12 +391,12 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
                 translate={qepTranslate}
                 zoom={qepZoom}
                 nodeSize={{ x: 120, y: 200 }}
-                separation={{ siblings: 1.5, nonSiblings: 3 }}
+                separation={{ siblings: 2, nonSiblings: 3 }}
                 renderCustomNodeElement={renderQEPNode}
                 collapsible={false}
               />
               {totalCostOriginalQEP !== null && (
-                <Text mt="sm" align="center" style={{ fontWeight: 'bold' }}>
+                <Text mt="sm" align="center">
                   Total Cost: {totalCostOriginalQEP}
                 </Text>
               )}
@@ -408,7 +430,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
                     collapsible={false}
                   />
                   {totalCostAQP !== null && (
-                    <Text mt="sm" align="center" style={{ fontWeight: 'bold' }}>
+                    <Text mt="sm" align="center">
                       Total Cost: {totalCostAQP}
                     </Text>
                   )}
@@ -427,7 +449,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
                     collapsible={false}
                   />
                   {totalCostAQP !== null && (
-                    <Text mt="sm" align="center" style={{ fontWeight: 'bold' }}>
+                    <Text mt="sm" align="center">
                       Total Cost: {totalCostAQP}
                     </Text>
                   )}
@@ -536,7 +558,9 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
 
       {generatedAQPData && (
         <Box mt="xl">
-          <Title order={5}>Hints</Title>
+          <Title order={5} mt="xl">
+            Hints
+          </Title>
           <Group mt="sm">
             {Object.entries(apiHints).map(([key, value]) => (
               <HoverCard width={280} shadow="md" key={key}>
