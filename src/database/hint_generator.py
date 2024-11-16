@@ -121,7 +121,8 @@ class HintConstructor:
         """Generate explanation for each hint."""
         hint_explain_d = {}
         for hint in hint_lst:
-            if "Join" or "Nest" in hint:
+            if "Join" in hint or "Nest" in hint:
+                print("is join hint:", hint)
                 # Is Join hint
                 _split = hint.split("(")
                 join_type = _split[0]
@@ -153,21 +154,26 @@ class HintConstructor:
         # Add join order hint
         join_order = self._construct_join_order()
         if join_order:
+            print("join_order", join_order)
             hints.append(join_order)
-            hint_expl_d | self._generate_explain([join_order])
+            hint_expl_d.update(self._generate_explain([join_order]))
 
         # Add join type hints
         join_hints = self._get_join_hints()
         if join_hints:
+            print("join_hints", join_hints)
             hints.extend(join_hints)
-            hint_expl_d | self._generate_explain(join_hints)
+            hint_expl_d.update(self._generate_explain(join_hints))
 
         # Add scan hints
         scan_hints = self._get_scan_hints()
         if scan_hints:
+            print("scan_hints", scan_hints)
             hints.extend(scan_hints)
-            hint_expl_d | self._generate_explain(scan_hints)
+            hint_expl_d.update(self._generate_explain(scan_hints))
             hints.extend(scan_hints)
+
+        print("hint_expl_d:", hint_expl_d)
 
         # Combine all hints
         return f"/*+ {' '.join(hints)} */", hints, hint_expl_d

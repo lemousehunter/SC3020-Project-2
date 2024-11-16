@@ -102,7 +102,7 @@ where C.c_custkey = O.o_custkey
     QEPVisualizer(modified_graph).visualize(VIZ_DIR / "modified_pre-explained_qep_tree.png")
 
     # 5 Generate Hint
-    hint, hint_lst, hint_expl = HintConstructor(modified_graph).generate_hints()
+    hint, hint_lst, hint_expl = HintConstructor(modified_graph, alias_map).generate_hints()
     print(hint)
     print("Hint Explanations\n{}".format(hint_expl))
 
@@ -123,3 +123,5 @@ where C.c_custkey = O.o_custkey
     # 8. Change Checker
     # Check if the query has been modified correctly
     QEPChangeChecker().check(tree, modified_graph, modifications, False)
+
+    print(hint_expl)

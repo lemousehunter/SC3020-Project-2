@@ -528,7 +528,7 @@ if __name__ == "__main__":
 
     # 2. Parse the original plan
     parser = QEPParser()
-    original_graph, jo, alias_map, join_node_id_map = parser.parse(qep_data)
+    original_graph, jo, alias_map, join_node_id_map = parser.parse(qep_data, {})
 
     # 3. Create modifications
     # Change the sequential scan on customer table to an index scan

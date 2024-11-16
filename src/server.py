@@ -5,6 +5,7 @@ import networkx as nx
 from dataclasses import dataclass
 
 from src.database.databaseManager import DatabaseManager
+from src.database.qep.qep_change_checker import QEPChangeChecker
 from src.database.qep.qep_parser import QEPParser
 from src.database.qep.qep_modifier import QEPModifier
 from src.database.query_modifier import QueryModifier
@@ -30,6 +31,7 @@ class QueryPlanManager:
         self.parser = QEPParser()
         self.preview_graph: Optional[nx.DiGraph]  = None
         self.join_node_id_map: Optional[Dict[str, str]] = None
+        self.query_checker = QEPChangeChecker()
 
     def generate_plan(self, query: str, db_connection: DatabaseManager) -> Dict:
         """Generate query execution plan"""
@@ -86,6 +88,8 @@ class QueryPlanManager:
 
         modified_cost = self.parser.get_total_cost()
 
+        changes_lst = self.query_checker.check(updated_graph, modified_graph, modifications, False)
+
         return {
             "modified_query": modified_query,
             "costs": {
@@ -93,7 +97,8 @@ class QueryPlanManager:
                 "modified": modified_cost
             },
             "graph": self._convert_graph_to_dict(updated_graph),
-            "hints": hint_expl
+            "hints": hint_expl,
+            "changes_lst": changes_lst
         }
 
     def preview_swap(self, mod_lst: List) -> Dict:
@@ -259,7 +264,8 @@ class DatabaseServer:
                 "modified_sql_query": result["modified_query"],
                 "cost_comparison": result["costs"],
                 "updated_networkx_object": result["graph"],
-                "hints": result["hints"]
+                "hints": result["hints"],
+                "changes_lst": result['changes_lst']
             }), 200
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
