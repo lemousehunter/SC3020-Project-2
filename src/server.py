@@ -33,11 +33,12 @@ class QueryPlanManager:
         self.preview_graph: Optional[nx.DiGraph]  = None
         self.join_node_id_map: Optional[Dict[str, str]] = None
         self.query_checker = QEPChangeChecker()
+        self.scan_node_id_map = None
 
     def generate_plan(self, query: str, db_connection: DatabaseManager) -> Dict:
         """Generate query execution plan"""
         qep_data = db_connection.get_qep(query)
-        self.original_graph, self.ordered_relation_pairs, self.alias_map, self.join_node_id_map = self.parser.parse(qep_data, self.join_node_id_map)
+        self.original_graph, self.ordered_relation_pairs, self.alias_map, self.join_node_id_map, self.scan_node_id_map = self.parser.parse(qep_data, self.join_node_id_map, self.scan_node_id_map)
 
         return self._convert_graph_to_dict(self.original_graph)
 
@@ -114,10 +115,11 @@ class QueryPlanManager:
         # Generate hints
         hints, hint_list, hint_expl = HintConstructor(modified_graph, self.alias_map).generate_hints()
         modified_query = QueryModifier(query=query, hint=hints).modify()
+        print("self.scan_node_id_map:", self.scan_node_id_map)
 
         # Get updated plan
         updated_qep = db_connection.get_qep(modified_query)
-        updated_graph, updated_ordered_relation_pairs, updated_alias_map, updated_join_node_id_map = self.parser.parse(updated_qep, self.join_node_id_map)
+        updated_graph, updated_ordered_relation_pairs, updated_alias_map, updated_join_node_id_map, updated_scan_node_id_map = self.parser.parse(updated_qep, self.join_node_id_map, self.scan_node_id_map)
 
         modified_cost = self.parser.get_total_cost()
 
