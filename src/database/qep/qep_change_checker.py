@@ -111,7 +111,7 @@ class QEPChangeChecker:
         changes_lst = []
 
         if identify_by_node_id:  # use node_id to identify nodes
-            for modification in modification_lst:  # use specced modifications
+            for modification in modification_lst:
                 if isinstance(modification, TypeModification):
                     change = self._check_type_change(modification, modification.node_id)
                     changes_lst.append((modification, change))
@@ -125,7 +125,7 @@ class QEPChangeChecker:
                     changes_lst.append((modification, change))
 
                 else:
-                    raise ValueError("Invalid modification type", modification)
+                    raise ValueError("Invalid modification type id", modification)
         else:
             for modification in modification_lst:  # use specced modifications
                 if isinstance(modification, TypeModification):
