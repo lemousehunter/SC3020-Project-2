@@ -151,6 +151,40 @@ npm install -g yarn
 yarn install
 ```
 
+### Step 4: Install the required library for Python
+
+Navigate to this project folder through `cd` in your **Command Prompt** type:
+```
+pip install -r requirements.txt
+```
+
+## Run the Program
+At this step you need to assure there are 2 **PowerShell** are running on your machine.
+
+### Step 1: Run the backend server
+Open the first **PowerShell** window and type in this line:
+```
+python3 project.py
+```
+
+
+### Step 2: Run the UI server
+Open the second **PowerShell** window and type in this line:
+```
+npm run dev
+```
+The **PowerShell** will display this line:
+```
+   ▲ Next.js 14.0.1
+   - Local:        http://localhost:3000
+```
+
+### Step 3: Run the application
+Open your web brower and paste in the local url in your search bar and enjoy.
+```
+http://localhost:3000
+```
+
 
 
 
