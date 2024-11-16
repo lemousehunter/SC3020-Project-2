@@ -4,9 +4,6 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from typing import Dict, List, Optional, Set, Tuple, Union
 from dataclasses import dataclass
-
-from requests.packages import target
-
 from src.database.databaseManager import DatabaseManager
 from src.interface import run_interface
 
@@ -19,8 +16,6 @@ class DatabaseConfig:
     """Configuration for available databases"""
     name: str
     value: str
-
-
 
 
 class DatabaseServer:
