@@ -45,7 +45,7 @@ class QueryPlanManager:
             raise ValueError("No original graph available")
 
         qep_modifier = QEPModifier(self.original_graph, self.ordered_relation_pairs, self.alias_map)
-
+        modification_lst = []
         # Process modifications
         for mod in modifications:
             modification_type = mod.get('mod_type')
@@ -65,10 +65,10 @@ class QueryPlanManager:
             else:
                 raise ValueError(f"Invalid modification type: {modification_type}")
             qep_modifier.add_modification(query_mod)
-
+        modification_lst.append(query_mod)
         modified_graph, mods_lst = qep_modifier.apply_modifications()
 
-        return modified_graph, mods_lst
+        return modified_graph, modification_lst
 
 
     def modify_plan(self, query: str, modifications: List[Dict], db_connection: DatabaseManager) -> Dict:
