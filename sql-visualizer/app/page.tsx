@@ -2,21 +2,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { IconX, IconCheck } from '@tabler/icons-react';
+import { IconCheck, IconX } from '@tabler/icons-react';
 import {
   AppShell,
   Box,
   Divider,
   Grid,
+  Loader,
+  Modal,
   Notification,
   rem,
   Select,
   Stack,
   Text,
   Title,
-  Modal,
-  Loader,
-    useMantineColorScheme,
+  useMantineColorScheme,
 } from '@mantine/core';
 import { ColorSchemeToggle } from '../components/ColorSchemeToggle/ColorSchemeToggle';
 import ModifiedSQLPanel from '../components/ModifiedSQLPanel';
@@ -188,24 +188,6 @@ export default function HomePage() {
             <Text>Loading, please wait...</Text>
           </Stack>
         </Modal>
-
-        {notification.show && (
-          <Notification
-            icon={<IconX style={{ width: rem(20), height: rem(20) }} />}
-            color={notification.message.includes('successfully') ? 'green' : 'red'} // Use green for success
-            title={notification.message.includes('successfully') ? 'Success' : 'Error'} // Set title accordingly
-            onClose={() => setNotification((prev) => ({ ...prev, show: false }))}
-            style={{
-              position: 'fixed',
-              bottom: rem(20),
-              left: rem(20),
-              width: rem(300),
-              zIndex: 1000,
-            }}
-          >
-            {notification.message}
-          </Notification>
-        )}
 
         <Box style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
           <Select

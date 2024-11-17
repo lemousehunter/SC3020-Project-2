@@ -34,17 +34,17 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   const [modifiedTreeData, setModifiedTreeData] = useState<any | null>(null);
   const [selectedNode, setSelectedNode] = useState<any | null>(null);
   type PendingChange =
-  | {
-      mod_type: 'TypeChange';
-      node_id: string;
-      newType: string;
-      originalType: string;
-    }
-  | {
-      mod_type: 'JoinOrderChange';
-      node_1_id: string;
-      node_2_id: string;
-    };
+    | {
+        mod_type: 'TypeChange';
+        node_id: string;
+        newType: string;
+        originalType: string;
+      }
+    | {
+        mod_type: 'JoinOrderChange';
+        node_1_id: string;
+        node_2_id: string;
+      };
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const [showErrorNotification, setShowErrorNotification] = useState(false);
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
@@ -75,8 +75,8 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   }, [qepData]);
 
   useEffect(() => {
-    console.log("Modified tree data updated:", modifiedTreeData);
-}, [modifiedTreeData]);
+    console.log('Modified tree data updated:', modifiedTreeData);
+  }, [modifiedTreeData]);
 
   useEffect(() => {
     if (treeContainerRef.current) {
@@ -126,48 +126,47 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   };
 
   const handleNodeClick = (node: any) => {
-  if (modificationType === 'OrderChange') {
-    setSelectedNode((prev: SelectedNodeOrderChange | null) => {
-      const prevArray = Array.isArray(prev) ? prev : []; // Ensure `prev` is an array
-      const isAlreadySelected = prevArray.some((n) => n.id === node.data.id);
+    if (modificationType === 'OrderChange') {
+      setSelectedNode((prev: SelectedNodeOrderChange | null) => {
+        const prevArray = Array.isArray(prev) ? prev : []; // Ensure `prev` is an array
+        const isAlreadySelected = prevArray.some((n) => n.id === node.data.id);
 
-      if (isAlreadySelected) {
-        // Deselect the node
-        const updatedSelection = prevArray.filter((n) => n.id !== node.data.id);
+        if (isAlreadySelected) {
+          // Deselect the node
+          const updatedSelection = prevArray.filter((n) => n.id !== node.data.id);
 
-        // Reset `firstSelectedNode` if the last selected node is deselected
-        if (updatedSelection.length === 0) {
-          setFirstSelectedNode(null);
-        } else if (updatedSelection.length === 1) {
-          // Update `firstSelectedNode` to the remaining node
-          setFirstSelectedNode(findNodeById(qepTreeData, updatedSelection[0].id));
-        }
-
-        return updatedSelection;
-      } else {
-        if (prevArray.length < 2) {
-          // Add the node to the selection
-          if (prevArray.length === 0) {
-            // Set the first selected node if this is the first selection
-            setFirstSelectedNode(node.data);
+          // Reset `firstSelectedNode` if the last selected node is deselected
+          if (updatedSelection.length === 0) {
+            setFirstSelectedNode(null);
+          } else if (updatedSelection.length === 1) {
+            // Update `firstSelectedNode` to the remaining node
+            setFirstSelectedNode(findNodeById(qepTreeData, updatedSelection[0].id));
           }
-          return [...prevArray, { id: node.data.id, type: node.data.type }];
+
+          return updatedSelection;
+        } else {
+          if (prevArray.length < 2) {
+            // Add the node to the selection
+            if (prevArray.length === 0) {
+              // Set the first selected node if this is the first selection
+              setFirstSelectedNode(node.data);
+            }
+            return [...prevArray, { id: node.data.id, type: node.data.type }];
+          }
         }
-      }
 
-      return prevArray; // Keep as-is if already 2 nodes selected
-    });
-  } else if (modificationType === 'TypeChange') {
-    if (node.data._join_or_scan !== 'Unknown') {
-      setSelectedNode({
-        id: node.data.id,
-        type: node.data.type,
-        _join_or_scan: node.data._join_or_scan,
+        return prevArray; // Keep as-is if already 2 nodes selected
       });
+    } else if (modificationType === 'TypeChange') {
+      if (node.data._join_or_scan !== 'Unknown') {
+        setSelectedNode({
+          id: node.data.id,
+          type: node.data.type,
+          _join_or_scan: node.data._join_or_scan,
+        });
+      }
     }
-  }
-};
-
+  };
 
   // Helper function to determine if a node should be disabled
   const isNodeDisabled = (nodeDatum: any) => {
@@ -179,11 +178,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
 
     if (isFirstJoinNode) {
       // Allow join nodes, the first selected node, and its sibling
-      return !(
-        isCurrentJoinNode ||
-        nodeDatum.id === firstSelectedNode.id ||
-        isCurrentSibling
-      );
+      return !(isCurrentJoinNode || nodeDatum.id === firstSelectedNode.id || isCurrentSibling);
     } else {
       // Allow only the first selected node and its sibling
       return !(nodeDatum.id === firstSelectedNode.id || isCurrentSibling);
@@ -244,79 +239,78 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   };
 
   const generateAQP = async () => {
-  if (pendingChanges.length === 0) {
-    setShowErrorNotification(true);
-    setTimeout(() => setShowErrorNotification(false), 3000);
-    return;
-  }
-
-  console.log("pendingChanges:", pendingChanges);
-
-  const requestBody = {
-    query,
-    modifications: pendingChanges,
-  };
-
-  console.log('Request Body:', requestBody);
-
-  try {
-    const response = await fetch('http://127.0.0.1:5000/api/query/modify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (response.ok) {
-      const responseData = await response.json();
-
-      console.log('API Response:', responseData);
-
-      const modifiedSql = responseData.modified_sql_query || '';
-      const originalCost = responseData.cost_comparison?.original || 'Error';
-      const modifiedCost = responseData.cost_comparison?.modified || 'Error';
-      const updatedNetworkXObject = responseData.updated_networkx_object;
-      const hints = responseData.hints || {};
-
-      if (!updatedNetworkXObject) {
-        console.error('Error: updated_networkx_object is missing from the response.');
-        setShowErrorNotification(true);
-        setNotification({
-          message:
-            'Error: updated_networkx_object is missing in the response. Please check with the API.',
-          show: true,
-        });
-        return;
-      }
-
-      setModifiedSQL(modifiedSql);
-      setTotalCostOriginalQEP(originalCost);
-      setTotalCostAQP(modifiedCost);
-      setApiHints(hints);
-
-      applyWhatIfChanges(modifiedSql);
-
-      console.log('Updated NetworkX Object:', updatedNetworkXObject);
-
-      const aqpTreeData = convertAQPToTree(updatedNetworkXObject);
-      setGeneratedAQPData(aqpTreeData);
-
-      setPendingChanges([]);
-      setShowSuccessNotification(true);
-    } else {
-      throw new Error('Failed to generate AQP');
+    if (pendingChanges.length === 0) {
+      setShowErrorNotification(true);
+      setTimeout(() => setShowErrorNotification(false), 3000);
+      return;
     }
-  } catch (error) {
-    console.error('Error generating AQP:', error);
-    setShowErrorNotification(true);
-    setNotification({
-      message: 'Error generating AQP. Please try again later or check the server logs.',
-      show: true,
-    });
-  }
-};
 
+    console.log('pendingChanges:', pendingChanges);
+
+    const requestBody = {
+      query,
+      modifications: pendingChanges,
+    };
+
+    console.log('Request Body:', requestBody);
+
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/query/modify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (response.ok) {
+        const responseData = await response.json();
+
+        console.log('API Response:', responseData);
+
+        const modifiedSql = responseData.modified_sql_query || '';
+        const originalCost = responseData.cost_comparison?.original || 'Error';
+        const modifiedCost = responseData.cost_comparison?.modified || 'Error';
+        const updatedNetworkXObject = responseData.updated_networkx_object;
+        const hints = responseData.hints || {};
+
+        if (!updatedNetworkXObject) {
+          console.error('Error: updated_networkx_object is missing from the response.');
+          setShowErrorNotification(true);
+          setNotification({
+            message:
+              'Error: updated_networkx_object is missing in the response. Please check with the API.',
+            show: true,
+          });
+          return;
+        }
+
+        setModifiedSQL(modifiedSql);
+        setTotalCostOriginalQEP(originalCost);
+        setTotalCostAQP(modifiedCost);
+        setApiHints(hints);
+
+        applyWhatIfChanges(modifiedSql);
+
+        console.log('Updated NetworkX Object:', updatedNetworkXObject);
+
+        const aqpTreeData = convertAQPToTree(updatedNetworkXObject);
+        setGeneratedAQPData(aqpTreeData);
+
+        setPendingChanges([]);
+        setShowSuccessNotification(true);
+      } else {
+        throw new Error('Failed to generate AQP');
+      }
+    } catch (error) {
+      console.error('Error generating AQP:', error);
+      setShowErrorNotification(true);
+      setNotification({
+        message: 'Error generating AQP. Please try again later or check the server logs.',
+        show: true,
+      });
+    }
+  };
 
   const previewOrderChange = async () => {
     if (!selectedNode || selectedNode.length < 2) {
@@ -366,23 +360,23 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
 
         const tree = convertAQPToTree(networkx_object);
         console.log('Converted data to tree:', tree);
-        console.log("before set modifiedTreeData:", modifiedTreeData);
+        console.log('before set modifiedTreeData:', modifiedTreeData);
         setModifiedTreeData(JSON.parse(JSON.stringify(tree)));
         //setModifiedTreeData(null);
         //setModifiedTreeData(JSON.parse(JSON.stringify(tree)));
-        console.log("modifiedTreeData:", modifiedTreeData);
+        console.log('modifiedTreeData:', modifiedTreeData);
         console.log(JSON.parse(JSON.stringify(tree)));
-        console.log("Set generated data");
+        console.log('Set generated data');
         setPendingChanges((prevChanges) => [
-        ...prevChanges,
-        {
-          mod_type: 'JoinOrderChange',
-          node_1_id: node1.id,
-          node_2_id: node2.id,
-        },
-      ]);
+          ...prevChanges,
+          {
+            mod_type: 'JoinOrderChange',
+            node_1_id: node1.id,
+            node_2_id: node2.id,
+          },
+        ]);
 
-      setSelectedNode(null);
+        setSelectedNode(null);
         setShowSuccessNotification(true);
       } else {
         throw new Error('Failed to preview join order change');
@@ -393,219 +387,220 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
     }
   };
 
-
   const getRenderQEPNode = () => {
-  if (modificationType === 'OrderChange') {
-    // Return the Order Change renderer
-    return ({ nodeDatum, hierarchyPointNode }: any) => {
-      const maxSelectableNodes = 2;
-      const isSelected =
-        Array.isArray(selectedNode) && selectedNode.some((node) => node.id === nodeDatum.id);
+    if (modificationType === 'OrderChange') {
+      // Return the Order Change renderer
+      return ({ nodeDatum, hierarchyPointNode }: any) => {
+        const maxSelectableNodes = 2;
+        const isSelected =
+          Array.isArray(selectedNode) && selectedNode.some((node) => node.id === nodeDatum.id);
 
-      // Disable all other nodes if two nodes are selected
-      const isDisabled =
-        selectedNode && selectedNode.length === maxSelectableNodes
-          ? !isSelected // Disable nodes not in the selection
-          : isNodeDisabled(nodeDatum); // Use existing logic if less than 2 nodes selected
+        // Disable all other nodes if two nodes are selected
+        const isDisabled =
+          selectedNode && selectedNode.length === maxSelectableNodes
+            ? !isSelected // Disable nodes not in the selection
+            : isNodeDisabled(nodeDatum); // Use existing logic if less than 2 nodes selected
 
-      const fillColor = isDisabled
-        ? '#D3D3D3'
-        : nodeDatum._join_or_scan === 'Scan'
-        ? '#FFD700'
-        : nodeDatum._join_or_scan === 'Unknown'
-        ? '#EAF6FB'
-        : '#B0D4FF';
+        const fillColor = isDisabled
+          ? '#D3D3D3'
+          : nodeDatum._join_or_scan === 'Scan'
+            ? '#FFD700'
+            : nodeDatum._join_or_scan === 'Unknown'
+              ? '#EAF6FB'
+              : '#B0D4FF';
 
-      const strokeColor = isSelected ? '#FF4500' : '#000';
-      const textColor = '#000';
+        const strokeColor = isSelected ? '#FF4500' : '#000';
+        const textColor = '#000';
 
-      const allowedAttributes = [
-        'node_type',
-        'cost',
-        'join_on',
-        'Hash Cond',
-        'join_order',
-        'position',
-      ];
-      const displayAttributes = Object.entries(nodeDatum)
-        .filter(([key]) => allowedAttributes.includes(key))
-        .map(([key, value]) => ({ key, value }));
+        const allowedAttributes = [
+          'node_type',
+          'cost',
+          'join_on',
+          'Hash Cond',
+          'join_order',
+          'position',
+        ];
+        const displayAttributes = Object.entries(nodeDatum)
+          .filter(([key]) => allowedAttributes.includes(key))
+          .map(([key, value]) => ({ key, value }));
 
-      const rowHeight = 20;
-      const tablePadding = 10;
+        const rowHeight = 20;
+        const tablePadding = 10;
 
-      const maxKeyLength = Math.max(...displayAttributes.map((attr) => attr.key.length));
-      const maxValueLength = Math.max(
-        ...displayAttributes.map((attr) => String(attr.value).length)
-      );
-      const calculatedWidth = Math.max(200, (maxKeyLength + maxValueLength) * 8);
+        const maxKeyLength = Math.max(...displayAttributes.map((attr) => attr.key.length));
+        const maxValueLength = Math.max(
+          ...displayAttributes.map((attr) => String(attr.value).length)
+        );
+        const calculatedWidth = Math.max(200, (maxKeyLength + maxValueLength) * 8);
 
-      const totalHeight = tablePadding * 2 + displayAttributes.length * rowHeight + 20;
+        const totalHeight = tablePadding * 2 + displayAttributes.length * rowHeight + 20;
 
-      return (
-        <g
-          onClick={() => {
-            if (!isDisabled && nodeDatum._swappable) {
-              handleNodeClick(hierarchyPointNode);
-            }
-          }}
-        >
-          <rect
-            x={-calculatedWidth / 2 - tablePadding}
-            y={-totalHeight / 2}
-            width={calculatedWidth + tablePadding * 2}
-            height={totalHeight}
-            rx="10"
-            fill={fillColor}
-            stroke={strokeColor}
-            strokeWidth={isSelected ? 3 : 1}
-          />
-          <text
-            x="0"
-            y={-totalHeight / 2 + tablePadding + rowHeight / 2}
-            style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
+        return (
+          <g
+            onClick={() => {
+              if (!isDisabled && nodeDatum._swappable) {
+                handleNodeClick(hierarchyPointNode);
+              }
+            }}
           >
-            {nodeDatum.node_type || 'Unknown Type'}
-          </text>
-          {displayAttributes.map((attr, index) => (
-            <g key={index}>
-              <text
-                x={-calculatedWidth / 2 + tablePadding}
-                y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
-                style={{ fontSize: 15, textAnchor: 'start', fill: textColor }}
-              >
-                {attr.key}:
-              </text>
-              <text
-                x={calculatedWidth / 2 - tablePadding}
-                y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
-                style={{ fontSize: 15, textAnchor: 'end', fill: textColor }}
-              >
-                {String(attr.value)}
-              </text>
-            </g>
-          ))}
-        </g>
-      );
-    };
-  } else {
-    // Return the Type Change renderer
-    return ({ nodeDatum, hierarchyPointNode }: any) => {
-      const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
+            <rect
+              x={-calculatedWidth / 2 - tablePadding}
+              y={-totalHeight / 2}
+              width={calculatedWidth + tablePadding * 2}
+              height={totalHeight}
+              rx="10"
+              fill={fillColor}
+              stroke={strokeColor}
+              strokeWidth={isSelected ? 3 : 1}
+            />
+            <text
+              x="0"
+              y={-totalHeight / 2 + tablePadding + rowHeight / 2}
+              style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
+            >
+              {nodeDatum.node_type || 'Unknown Type'}
+            </text>
+            {displayAttributes.map((attr, index) => (
+              <g key={index}>
+                <text
+                  x={-calculatedWidth / 2 + tablePadding}
+                  y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
+                  style={{ fontSize: 15, textAnchor: 'start', fill: textColor }}
+                >
+                  {attr.key}:
+                </text>
+                <text
+                  x={calculatedWidth / 2 - tablePadding}
+                  y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
+                  style={{ fontSize: 15, textAnchor: 'end', fill: textColor }}
+                >
+                  {String(attr.value)}
+                </text>
+              </g>
+            ))}
+          </g>
+        );
+      };
+    } else {
+      // Return the Type Change renderer
+      return ({ nodeDatum, hierarchyPointNode }: any) => {
+        const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
 
-      const fillColor =
-        nodeDatum._join_or_scan === 'Scan'
-          ? '#FFD700'
-          : nodeDatum._join_or_scan === 'Unknown'
-          ? '#EAF6FB'
-          : '#B0D4FF';
+        const fillColor =
+          nodeDatum._join_or_scan === 'Scan'
+            ? '#FFD700'
+            : nodeDatum._join_or_scan === 'Unknown'
+              ? '#EAF6FB'
+              : '#B0D4FF';
 
-      const strokeColor = isSelected ? '#FF4500' : '#000';
-      const textColor = '#000';
+        const strokeColor = isSelected ? '#FF4500' : '#000';
+        const textColor = '#000';
 
-      const allowedAttributes = [
-        'node_type',
-        'cost',
-        'join_on',
-        'Hash Cond',
-        'join_order',
-        'position',
-      ];
-      const displayAttributes = Object.entries(nodeDatum)
-        .filter(([key]) => allowedAttributes.includes(key))
-        .map(([key, value]) => ({ key, value }));
+        const allowedAttributes = [
+          'node_type',
+          'cost',
+          'join_on',
+          'Hash Cond',
+          'join_order',
+          'position',
+        ];
+        const displayAttributes = Object.entries(nodeDatum)
+          .filter(([key]) => allowedAttributes.includes(key))
+          .map(([key, value]) => ({ key, value }));
 
-      const rowHeight = 20;
-      const tablePadding = 10;
+        const rowHeight = 20;
+        const tablePadding = 10;
 
-      const maxKeyLength = Math.max(...displayAttributes.map((attr) => attr.key.length));
-      const maxValueLength = Math.max(
-        ...displayAttributes.map((attr) => String(attr.value).length)
-      );
-      const calculatedWidth = Math.max(200, (maxKeyLength + maxValueLength) * 8);
+        const maxKeyLength = Math.max(...displayAttributes.map((attr) => attr.key.length));
+        const maxValueLength = Math.max(
+          ...displayAttributes.map((attr) => String(attr.value).length)
+        );
+        const calculatedWidth = Math.max(200, (maxKeyLength + maxValueLength) * 8);
 
-      const totalHeight = tablePadding * 2 + displayAttributes.length * rowHeight + 20;
+        const totalHeight = tablePadding * 2 + displayAttributes.length * rowHeight + 20;
 
-      return (
-        <g
-          onClick={() => {
-            if (nodeDatum._join_or_scan !== 'Unknown') {
-              handleNodeClick(hierarchyPointNode);
-            }
-          }}
-        >
-          <rect
-            x={-calculatedWidth / 2 - tablePadding}
-            y={-totalHeight / 2}
-            width={calculatedWidth + tablePadding * 2}
-            height={totalHeight}
-            rx="10"
-            fill={fillColor}
-            stroke={strokeColor}
-            strokeWidth={isSelected ? 3 : 1}
-          />
-          <text
-            x="0"
-            y={-totalHeight / 2 + tablePadding + rowHeight / 2}
-            style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
+        return (
+          <g
+            onClick={() => {
+              if (nodeDatum._join_or_scan !== 'Unknown') {
+                handleNodeClick(hierarchyPointNode);
+              }
+            }}
           >
-            {nodeDatum.node_type || 'Unknown Type'}
-          </text>
-          {displayAttributes.map((attr, index) => (
-            <g key={index}>
-              <text
-                x={-calculatedWidth / 2 + tablePadding}
-                y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
-                style={{ fontSize: 15, textAnchor: 'start', fill: textColor }}
-              >
-                {attr.key}:
-              </text>
-              <text
-                x={calculatedWidth / 2 - tablePadding}
-                y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
-                style={{ fontSize: 15, textAnchor: 'end', fill: textColor }}
-              >
-                {String(attr.value)}
-              </text>
-            </g>
-          ))}
-        </g>
-      );
-    };
-  }
-};
-
+            <rect
+              x={-calculatedWidth / 2 - tablePadding}
+              y={-totalHeight / 2}
+              width={calculatedWidth + tablePadding * 2}
+              height={totalHeight}
+              rx="10"
+              fill={fillColor}
+              stroke={strokeColor}
+              strokeWidth={isSelected ? 3 : 1}
+            />
+            <text
+              x="0"
+              y={-totalHeight / 2 + tablePadding + rowHeight / 2}
+              style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
+            >
+              {nodeDatum.node_type || 'Unknown Type'}
+            </text>
+            {displayAttributes.map((attr, index) => (
+              <g key={index}>
+                <text
+                  x={-calculatedWidth / 2 + tablePadding}
+                  y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
+                  style={{ fontSize: 15, textAnchor: 'start', fill: textColor }}
+                >
+                  {attr.key}:
+                </text>
+                <text
+                  x={calculatedWidth / 2 - tablePadding}
+                  y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
+                  style={{ fontSize: 15, textAnchor: 'end', fill: textColor }}
+                >
+                  {String(attr.value)}
+                </text>
+              </g>
+            ))}
+          </g>
+        );
+      };
+    }
+  };
 
   const renderPreviewNode = ({ nodeDatum }: any) => {
-    console.log("renderPreviewNode is called");
     const fillColor =
       nodeDatum._join_or_scan === 'Scan'
         ? '#FFD700'
         : nodeDatum._join_or_scan === 'Unknown'
           ? '#EAF6FB'
           : '#B0D4FF'; // Use join_or_scan for color
-    const strokeColor = '#000'; // Default stroke color (no selection for preview)
+
+    const strokeColor = '#000'; // Default stroke color
     const textColor = '#000'; // Default text color
 
-    // Attributes to display, excluding `cost`
     const allowedAttributes = ['node_type', 'join_on', 'Hash Cond', 'join_order', 'position'];
     const displayAttributes = Object.entries(nodeDatum)
       .filter(([key]) => allowedAttributes.includes(key))
       .map(([key, value]) => ({ key, value }));
 
-    const baseHeight = 60; // Base height for the rectangle
-    const lineHeight = 18; // Line height for each attribute
-    const totalHeight = baseHeight + displayAttributes.length * lineHeight;
+    const rowHeight = 20;
+    const tablePadding = 10;
+
+    const maxKeyLength = Math.max(...displayAttributes.map((attr) => attr.key.length));
+    const maxValueLength = Math.max(...displayAttributes.map((attr) => String(attr.value).length));
+    const calculatedWidth = Math.max(200, (maxKeyLength + maxValueLength) * 8);
+    const totalHeight = tablePadding * 2 + displayAttributes.length * rowHeight + 20;
 
     return (
       <g>
         {/* Node rectangle */}
         <rect
-          x="-75"
+          x={-calculatedWidth / 2 - tablePadding}
           y={-totalHeight / 2}
-          width="150"
+          width={calculatedWidth + tablePadding * 2}
           height={totalHeight}
-          rx="15"
+          rx="10"
           fill={fillColor}
           stroke={strokeColor}
           strokeWidth={1}
@@ -613,21 +608,29 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
         {/* Node type at the top */}
         <text
           x="0"
-          y={-totalHeight / 2 + 20}
-          style={{ fontSize: 18, textAnchor: 'middle', fill: textColor }}
+          y={-totalHeight / 2 + tablePadding + rowHeight / 2}
+          style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
         >
           {nodeDatum.node_type || 'Unknown Type'}
         </text>
         {/* Dynamically render additional attributes */}
         {displayAttributes.map((attr, index) => (
-          <text
-            key={index}
-            x="0"
-            y={-totalHeight / 2 + 40 + index * lineHeight}
-            style={{ fontSize: 14, textAnchor: 'middle', fill: textColor }}
-          >
-            {`${attr.key}: ${attr.value}`}
-          </text>
+          <g key={index}>
+            <text
+              x={-calculatedWidth / 2 + tablePadding}
+              y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
+              style={{ fontSize: 15, textAnchor: 'start', fill: textColor }}
+            >
+              {attr.key}:
+            </text>
+            <text
+              x={calculatedWidth / 2 - tablePadding}
+              y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
+              style={{ fontSize: 15, textAnchor: 'end', fill: textColor }}
+            >
+              {String(attr.value)}
+            </text>
+          </g>
         ))}
       </g>
     );
