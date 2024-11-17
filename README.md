@@ -210,7 +210,9 @@ If for whatever reason your port 3000 is occupied, make sure to free it up. For 
 ⚠ Port 3000 is in use, trying 3001 instead.
 ```
 
-If you see the above, set the port in the `__init__()` function of `DatabaseServer` in `project.py` to the port mentioned in the above line:
+- If you see the above warning, try to access the web with `http://localhost:3001` or `http://localhost:3000` first, and try to select the database to connect.
+- If **NO database is found** try to modify the code as follows:
+set the port in the `__init__()` function of `DatabaseServer` in `project.py` to the **port mentioned** in the above line:
 
 eg.:
 ```
