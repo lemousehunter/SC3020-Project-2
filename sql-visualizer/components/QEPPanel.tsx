@@ -11,6 +11,7 @@ import {
   HoverCard,
   Notification,
   Select,
+  Switch,
   Text,
   Title,
 } from '@mantine/core';
@@ -25,6 +26,8 @@ interface QEPPanelProps {
   qepData: any | null;
   query: string; // Add query as a prop
 }
+type SelectedNode = { id: string; type: string } | null;
+type SelectedNodeOrderChange = { id: string; type: string }[];
 
 export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPanelProps) {
   const [qepTreeData, setQepTreeData] = useState<any | null>(null);
@@ -45,6 +48,10 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   const [apiHints, setApiHints] = useState<{ [key: string]: string }>({});
 
   const [totalCostAQP, setTotalCostAQP] = useState<number | null>(null);
+  const [modificationType, setModificationType] = useState<'TypeChange' | 'OrderChange'>(
+    'TypeChange'
+  );
+  const [firstSelectedNode, setFirstSelectedNode] = useState<any | null>(null);
 
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
@@ -70,12 +77,86 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
     }
   }, [qepTreeData, pendingChanges]);
 
-  const handleNodeClick = (node: any) => {
-    const nodeId = node.data.id || 'Unknown ID';
-    const nodeType = node.data.type || 'Unknown Type';
-    const nodeCategory = node.data._join_or_scan || 'Unknown'; // Changed to join_or_scan
+  const findParentNode = (tree: any, targetId: string): any | null => {
+    if (!tree.children || tree.children.length === 0) {
+      return null;
+    }
 
-    setSelectedNode({ id: nodeId, type: nodeType, _join_or_scan: nodeCategory });
+    for (let child of tree.children) {
+      if (child.id === targetId) {
+        return tree; // Parent node found
+      }
+
+      const found = findParentNode(child, targetId);
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
+  };
+
+  const getSiblingNode = (tree: any, currentNodeId: string): any | null => {
+    const parentNode = findParentNode(tree, currentNodeId);
+
+    if (!parentNode || !parentNode.children) {
+      return null; // No parent or siblings found
+    }
+
+    // Filter siblings to exclude the current node and any with `_is_subquery_node` set to true
+    const siblings = parentNode.children.filter(
+      (child: any) => child.id !== currentNodeId && !child._is_subquery_node
+    );
+
+    return siblings.length > 0 ? siblings[0] : null; // Return the first valid sibling if found
+  };
+
+  const handleNodeClick = (node: any) => {
+    if (modificationType === 'OrderChange') {
+      if (firstSelectedNode === null) {
+        // Set the first selected node
+        setFirstSelectedNode(node.data);
+      }
+
+      // Only allow selecting swappable nodes based on criteria
+      setSelectedNode((prev: SelectedNodeOrderChange | null) => {
+        const prevArray = Array.isArray(prev) ? prev : []; // Ensure prev is an array
+        if (prevArray.some((n) => n.id === node.data.id)) {
+          // Deselect if the node is already selected
+          return prevArray.filter((n) => n.id !== node.data.id);
+        }
+        if (prevArray.length < 2) {
+          return [...prevArray, { id: node.data.id, type: node.data.type }];
+        }
+        return prevArray; // Keep as-is if already 2 nodes selected
+      });
+    } else if (modificationType === 'TypeChange') {
+      if (node.data._join_or_scan !== 'Unknown') {
+        setSelectedNode({
+          id: node.data.id,
+          type: node.data.type,
+          _join_or_scan: node.data._join_or_scan,
+        });
+      }
+    }
+  };
+
+  // Helper function to determine if a node should be disabled
+  const isNodeDisabled = (nodeDatum: any) => {
+    if (!firstSelectedNode) {
+      return false; // No nodes are disabled before the first selection
+    }
+
+    const isFirstJoinNode = firstSelectedNode._join_or_scan === 'Join';
+    const isCurrentJoinNode = nodeDatum._join_or_scan === 'Join';
+
+    if (isFirstJoinNode) {
+      // Enable only join nodes, itself, and its sibling
+      return !(isCurrentJoinNode || nodeDatum.id === firstSelectedNode.id || isSibling(nodeDatum));
+    } else {
+      // Enable only itself and its sibling
+      return !(nodeDatum.id === firstSelectedNode.id || isSibling(nodeDatum));
+    }
   };
 
   const handleScanChange = (value: string | null) => {
@@ -213,87 +294,192 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
     }
   };
 
-  const renderQEPNode = ({ nodeDatum, hierarchyPointNode }: any) => {
-    const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
-    const fillColor =
-      nodeDatum._join_or_scan === 'Scan'
-        ? '#FFD700'
-        : nodeDatum._join_or_scan === 'Unknown'
-          ? '#EAF6FB'
-          : '#B0D4FF'; // Default color for other types
-    const strokeColor = isSelected && nodeDatum._join_or_scan !== 'Unknown' ? '#FF4500' : '#000';
-    const textColor = '#000';
+  const previewOrderChange = (node: any) => {
+    // Add logic to modify the node's order or mark the node for order preview.
+    setPendingChanges((prevChanges) => [
+      ...prevChanges,
+      {
+        id: node.id,
+        newOrder: 'SomeOrderLogic', // Replace with actual logic to determine new order
+        originalOrder: node.type,
+        mod_type: 'OrderChange',
+      },
+    ]);
+    setSelectedNode(null); // Deselect node after change
+  };
 
-    // List of attributes to display in table format
-    const allowedAttributes = [
-      'node_type',
-      'cost',
-      'join_on',
-      'Hash Cond',
-      'join_order',
-      'position',
-    ];
-    const displayAttributes = Object.entries(nodeDatum)
-      .filter(([key]) => allowedAttributes.includes(key))
-      .map(([key, value]) => ({ key, value }));
+  const getRenderQEPNode = () => {
+    if (modificationType === 'OrderChange') {
+      // Return the Order Change renderer
+      return ({ nodeDatum, hierarchyPointNode }: any) => {
+        const isSelected =
+          Array.isArray(selectedNode) && selectedNode.some((node) => node.id === nodeDatum.id);
 
-    const rowHeight = 20; // Height for each row in the table
-    const tablePadding = 10; // Padding around the table contents
+        const fillColor = !nodeDatum._swappable
+          ? '#D3D3D3'
+          : nodeDatum._join_or_scan === 'Scan'
+            ? '#FFD700'
+            : nodeDatum._join_or_scan === 'Unknown'
+              ? '#EAF6FB'
+              : '#B0D4FF';
 
-    // Calculate dynamic width based on the longest text
-    const maxKeyLength = Math.max(...displayAttributes.map((attr) => attr.key.length));
-    const maxValueLength = Math.max(...displayAttributes.map((attr) => String(attr.value).length));
-    const calculatedWidth = Math.max(200, (maxKeyLength + maxValueLength) * 8); // Adjust multiplier as needed
+        const strokeColor = isSelected ? '#FF4500' : '#000';
+        const textColor = '#000';
 
-    const totalHeight = tablePadding * 2 + displayAttributes.length * rowHeight + 20;
+        const allowedAttributes = [
+          'node_type',
+          'cost',
+          'join_on',
+          'Hash Cond',
+          'join_order',
+          'position',
+        ];
+        const displayAttributes = Object.entries(nodeDatum)
+          .filter(([key]) => allowedAttributes.includes(key))
+          .map(([key, value]) => ({ key, value }));
 
-    return (
-      <g onClick={() => handleNodeClick(hierarchyPointNode)}>
-        {/* Background for the table */}
-        <rect
-          x={-calculatedWidth / 2 - tablePadding}
-          y={-totalHeight / 2}
-          width={calculatedWidth + tablePadding * 2}
-          height={totalHeight}
-          rx="10"
-          fill={fillColor}
-          stroke={strokeColor}
-          strokeWidth={isSelected ? 3 : 1}
-        />
+        const rowHeight = 20;
+        const tablePadding = 10;
 
-        {/* Table Header */}
-        <text
-          x="0"
-          y={-totalHeight / 2 + tablePadding + rowHeight / 2}
-          style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
-        >
-          {nodeDatum.node_type || 'Unknown Type'}
-        </text>
+        const maxKeyLength = Math.max(...displayAttributes.map((attr) => attr.key.length));
+        const maxValueLength = Math.max(
+          ...displayAttributes.map((attr) => String(attr.value).length)
+        );
+        const calculatedWidth = Math.max(200, (maxKeyLength + maxValueLength) * 8);
 
-        {/* Key-Value Rows */}
-        {displayAttributes.map((attr, index) => (
-          <g key={index}>
-            {/* Key Column */}
+        const totalHeight = tablePadding * 2 + displayAttributes.length * rowHeight + 20;
+
+        return (
+          <g
+            onClick={() => {
+              if (nodeDatum._swappable) {
+                handleNodeClick(hierarchyPointNode);
+              }
+            }}
+          >
+            <rect
+              x={-calculatedWidth / 2 - tablePadding}
+              y={-totalHeight / 2}
+              width={calculatedWidth + tablePadding * 2}
+              height={totalHeight}
+              rx="10"
+              fill={fillColor}
+              stroke={strokeColor}
+              strokeWidth={isSelected ? 3 : 1}
+            />
             <text
-              x={-calculatedWidth / 2 + tablePadding}
-              y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
-              style={{ fontSize: 15, textAnchor: 'start', fill: textColor }}
+              x="0"
+              y={-totalHeight / 2 + tablePadding + rowHeight / 2}
+              style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
             >
-              {attr.key}:
+              {nodeDatum.node_type || 'Unknown Type'}
             </text>
-
-            {/* Value Column */}
-            <text
-              x={calculatedWidth / 2 - tablePadding}
-              y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
-              style={{ fontSize: 15, textAnchor: 'end', fill: textColor }}
-            >
-              {String(attr.value)} {/* Ensure value is a string */}
-            </text>
+            {displayAttributes.map((attr, index) => (
+              <g key={index}>
+                <text
+                  x={-calculatedWidth / 2 + tablePadding}
+                  y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
+                  style={{ fontSize: 15, textAnchor: 'start', fill: textColor }}
+                >
+                  {attr.key}:
+                </text>
+                <text
+                  x={calculatedWidth / 2 - tablePadding}
+                  y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
+                  style={{ fontSize: 15, textAnchor: 'end', fill: textColor }}
+                >
+                  {String(attr.value)}
+                </text>
+              </g>
+            ))}
           </g>
-        ))}
-      </g>
-    );
+        );
+      };
+    } else {
+      // Return the Type Change renderer
+      return ({ nodeDatum, hierarchyPointNode }: any) => {
+        const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
+
+        const fillColor =
+          nodeDatum._join_or_scan === 'Scan'
+            ? '#FFD700'
+            : nodeDatum._join_or_scan === 'Unknown'
+              ? '#EAF6FB'
+              : '#B0D4FF';
+
+        const strokeColor = isSelected ? '#FF4500' : '#000';
+        const textColor = '#000';
+
+        const allowedAttributes = [
+          'node_type',
+          'cost',
+          'join_on',
+          'Hash Cond',
+          'join_order',
+          'position',
+        ];
+        const displayAttributes = Object.entries(nodeDatum)
+          .filter(([key]) => allowedAttributes.includes(key))
+          .map(([key, value]) => ({ key, value }));
+
+        const rowHeight = 20;
+        const tablePadding = 10;
+
+        const maxKeyLength = Math.max(...displayAttributes.map((attr) => attr.key.length));
+        const maxValueLength = Math.max(
+          ...displayAttributes.map((attr) => String(attr.value).length)
+        );
+        const calculatedWidth = Math.max(200, (maxKeyLength + maxValueLength) * 8);
+
+        const totalHeight = tablePadding * 2 + displayAttributes.length * rowHeight + 20;
+
+        return (
+          <g
+            onClick={() => {
+              if (nodeDatum._join_or_scan !== 'Unknown') {
+                handleNodeClick(hierarchyPointNode);
+              }
+            }}
+          >
+            <rect
+              x={-calculatedWidth / 2 - tablePadding}
+              y={-totalHeight / 2}
+              width={calculatedWidth + tablePadding * 2}
+              height={totalHeight}
+              rx="10"
+              fill={fillColor}
+              stroke={strokeColor}
+              strokeWidth={isSelected ? 3 : 1}
+            />
+            <text
+              x="0"
+              y={-totalHeight / 2 + tablePadding + rowHeight / 2}
+              style={{ fontSize: 16, textAnchor: 'middle', fill: textColor }}
+            >
+              {nodeDatum.node_type || 'Unknown Type'}
+            </text>
+            {displayAttributes.map((attr, index) => (
+              <g key={index}>
+                <text
+                  x={-calculatedWidth / 2 + tablePadding}
+                  y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
+                  style={{ fontSize: 15, textAnchor: 'start', fill: textColor }}
+                >
+                  {attr.key}:
+                </text>
+                <text
+                  x={calculatedWidth / 2 - tablePadding}
+                  y={-totalHeight / 2 + tablePadding + (index + 1) * rowHeight + rowHeight / 2}
+                  style={{ fontSize: 15, textAnchor: 'end', fill: textColor }}
+                >
+                  {String(attr.value)}
+                </text>
+              </g>
+            ))}
+          </g>
+        );
+      };
+    }
   };
 
   const renderPreviewNode = ({ nodeDatum }: any) => {
@@ -354,7 +540,27 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
 
   return (
     <Card shadow="sm" padding="lg" mt="md" style={{ height: '98%', position: 'relative' }}>
-      <Title order={4}>QEP Panel</Title>
+      <Box
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between', // Align items to the left and right
+          alignItems: 'center', // Vertically center items
+          width: '100%',
+        }}
+      >
+        {/* Title */}
+        <Title order={4}>QEP Panel</Title>
+
+        {/* Slide Toggle */}
+        <Switch
+          label={modificationType === 'TypeChange' ? 'Type Change' : 'Order Change'}
+          checked={modificationType === 'OrderChange'}
+          onChange={(event) =>
+            setModificationType(event.currentTarget.checked ? 'OrderChange' : 'TypeChange')
+          }
+          size="md"
+        />
+      </Box>
       <Text>
         Visualized Query Execution Plan (QEP): Drag the tree or pinch to zoom for better view
       </Text>
@@ -392,7 +598,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
                 zoom={qepZoom}
                 nodeSize={{ x: 120, y: 200 }}
                 separation={{ siblings: 2, nonSiblings: 3 }}
-                renderCustomNodeElement={renderQEPNode}
+                renderCustomNodeElement={getRenderQEPNode()} // Dynamically apply the renderer
                 collapsible={false}
               />
               {totalCostOriginalQEP !== null && (
@@ -466,32 +672,43 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
         <Box mt="md" style={{ display: 'flex', justifyContent: 'space-between' }}>
           {selectedNode && selectedNode._join_or_scan !== 'Unknown' && (
             <Group spacing="sm">
-              {selectedNode._join_or_scan === 'Scan' ? (
-                <Select
-                  label="Change Scan Type"
-                  placeholder="Select scan type"
-                  data={[
-                    'Seq Scan',
-                    'Index Scan',
-                    'Index Only Scan',
-                    'Bitmap Heap Scan',
-                    'Tid Scan',
-                  ]}
-                  value={selectedNode.newType || ''}
-                  onChange={handleScanChange}
-                />
-              ) : (
-                <Select
-                  label="Change Join Type"
-                  placeholder="Select Join Type"
-                  data={['Hash Join', 'Merge Join', 'Nested Loop']}
-                  value={selectedNode.newType || ''}
-                  onChange={handleJoinChange}
-                />
-              )}
-              <Box style={{ alignSelf: 'flex-end' }}>
-                <Button onClick={confirmChange}>Confirm Change</Button>
-              </Box>
+              <Group spacing="sm">
+                {modificationType === 'TypeChange' ? (
+                  selectedNode._join_or_scan === 'Scan' ? (
+                    <Select
+                      label="Change Scan Type"
+                      placeholder="Select scan type"
+                      data={[
+                        'Seq Scan',
+                        'Index Scan',
+                        'Index Only Scan',
+                        'Bitmap Heap Scan',
+                        'Tid Scan',
+                      ]}
+                      value={selectedNode.newType || ''}
+                      onChange={handleScanChange}
+                    />
+                  ) : (
+                    <Select
+                      label="Change Join Type"
+                      placeholder="Select Join Type"
+                      data={['Hash Join', 'Merge Join', 'Nested Loop']}
+                      value={selectedNode.newType || ''}
+                      onChange={handleJoinChange}
+                    />
+                  )
+                ) : (
+                  <Button onClick={() => previewOrderChange(selectedNode)}>
+                    Preview Order Change
+                  </Button>
+                )}
+
+                {modificationType === 'TypeChange' && (
+                  <Box style={{ alignSelf: 'flex-end' }}>
+                    <Button onClick={confirmChange}>Confirm Change</Button>
+                  </Box>
+                )}
+              </Group>
             </Group>
           )}
 
