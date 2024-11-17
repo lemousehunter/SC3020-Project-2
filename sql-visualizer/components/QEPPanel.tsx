@@ -11,6 +11,7 @@ import {
   HoverCard,
   Notification,
   Select,
+  Switch,
   Text,
   Title,
 } from '@mantine/core';
@@ -45,6 +46,9 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   const [apiHints, setApiHints] = useState<{ [key: string]: string }>({});
 
   const [totalCostAQP, setTotalCostAQP] = useState<number | null>(null);
+  const [modificationType, setModificationType] = useState<'TypeChange' | 'OrderChange'>(
+    'TypeChange'
+  );
 
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
@@ -213,6 +217,20 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
     }
   };
 
+  const previewOrderChange = (node: any) => {
+    // Add logic to modify the node's order or mark the node for order preview.
+    setPendingChanges((prevChanges) => [
+      ...prevChanges,
+      {
+        id: node.id,
+        newOrder: 'SomeOrderLogic', // Replace with actual logic to determine new order
+        originalOrder: node.type,
+        mod_type: 'OrderChange',
+      },
+    ]);
+    setSelectedNode(null); // Deselect node after change
+  };
+
   const renderQEPNode = ({ nodeDatum, hierarchyPointNode }: any) => {
     const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
     const fillColor =
@@ -354,7 +372,27 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
 
   return (
     <Card shadow="sm" padding="lg" mt="md" style={{ height: '98%', position: 'relative' }}>
-      <Title order={4}>QEP Panel</Title>
+      <Box
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between', // Align items to the left and right
+          alignItems: 'center', // Vertically center items
+          width: '100%',
+        }}
+      >
+        {/* Title */}
+        <Title order={4}>QEP Panel</Title>
+
+        {/* Slide Toggle */}
+        <Switch
+          label={modificationType === 'TypeChange' ? 'Type Change' : 'Order Change'}
+          checked={modificationType === 'OrderChange'}
+          onChange={(event) =>
+            setModificationType(event.currentTarget.checked ? 'OrderChange' : 'TypeChange')
+          }
+          size="md"
+        />
+      </Box>
       <Text>
         Visualized Query Execution Plan (QEP): Drag the tree or pinch to zoom for better view
       </Text>
