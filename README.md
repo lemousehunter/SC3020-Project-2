@@ -164,12 +164,17 @@ Set the `PYTHONPATH` environmental variable to your project folder (which is the
 ```
 set PYTHONPATH="PATH/TO/PROJECT"
 ```
+One example could be like this:
+e.g.
+```
+set PYTHONPATH="C:\Users\_______\OneDrive\Desktop\SC3020\Project 2 Speed Run Everyone\SC3020-Project-2"
+```
 
 ### Step 6: Run the Server
 
 Now, ensure that your current working directory is the parent folder of the `src` folder. Next, Run the server using either `python -m` or `python3 -m`:
 ```
-python -m src.project.py
+python -m src.project
 ```
 
 You should see something like this:
