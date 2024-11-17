@@ -158,38 +158,71 @@ Navigate to this project folder through `cd` in your **Command Prompt** type:
 pip install -r requirements.txt
 ```
 
-## Run the Program
-At this step you need to assure there are 2 **PowerShell** are running on your machine.
+### Step 5: Set PYTHONPATH
 
-### Step 1: Run the backend server
-Open the first **PowerShell** window and type in this line:
+Set the `PYTHONPATH` environmental variable to your project folder (which is the parent directory of your `src` folder)
 ```
-python3 project.py
+set PYTHONPATH="PATH/TO/PROJECT"
 ```
 
+### Step 6: Run the Server
 
-### Step 2: Run the UI server
-Open the second **PowerShell** window and type in this line:
+Now, ensure that your current working directory is the parent folder of the `src` folder. Next, Run the server using either `python -m` or `python3 -m`:
 ```
-npm run dev
+python -m src.project.py
 ```
-The **PowerShell** will display this line:
+
+You should see something like this:
 ```
-   ▲ Next.js 14.0.1
+/usr/local/bin/python3.10 /Users/mouse/Documents/GitHub/SC3020/SC3020-Project-2/src/project.py 
+ * Serving Flask app 'project'
+ * Debug mode: on
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 338-494-232
+
+> mantine-next-template@1.0.0 dev
+> next dev
+
+
+> mantine-next-template@1.0.0 dev
+> next dev
+ ▲ Next.js 14.0.1
    - Local:        http://localhost:3000
+
+ ✓ Ready in 1491ms
+ ✓ Ready in 1378ms
+ ○ Compiling /page ...
+ ✓ Compiled /page in 936ms (1739 modules)
 ```
 
-### Step 3: Run the application
-Open your web brower and paste in the local url in your search bar and enjoy.
+# Note:
+If for whatever reason your port 3000 is occupied, make sure to free it up. For example, you may see the following:
 ```
-http://localhost:3000
+⚠ Port 3000 is in use, trying 3001 instead.
 ```
 
+If you see the above, set the port in the `__init__()` function of `DatabaseServer` in `project.py` to the port mentioned in the above line:
 
+eg.:
+```
+class DatabaseServer:
+    """Main server class handling database operations and API endpoints"""
 
-
-
-
+    def __init__(self):
+        self.app = Flask(__name__)
+        self.app.json = SetEncoder(self.app)
+        CORS(self.app, resources={
+                    r"/api/*": {
+                        "origins": ["http://localhost:3001"],  # Set port here
+                        "methods": ["GET", "POST", "OPTIONS"],
+                        "allow_headers": ["Content-Type"]
+                    }
+                })
+```
 
 
 
