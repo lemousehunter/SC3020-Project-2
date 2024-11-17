@@ -609,12 +609,8 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
     const strokeColor = '#000'; // Default stroke color
     const textColor = '#000'; // Default text color
 
-<<<<<<< HEAD
-    const allowedAttributes = ['node_type', 'join_on', 'Hash Cond', 'join_order', 'position'];
-=======
     // Attributes to display, excluding `cost`
     const allowedAttributes = ['node_type', 'join_on', 'Hash Cond', 'join_order', 'aliases'];
->>>>>>> e676fce073ea20f4217ac99fde53801920857299
     const displayAttributes = Object.entries(nodeDatum)
       .filter(([key]) => allowedAttributes.includes(key))
       .map(([key, value]) => ({ key, value }));
