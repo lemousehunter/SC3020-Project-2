@@ -433,6 +433,7 @@ class QEPParser:
         for node_id, node_data in self.graph.nodes(True):
             # Check if it is a subquery node:
             if node_data['_subplan']:
+                print("Subquery node found:", node_data['node_type'])
                 swappablity_d[node_id] = {'_swappable': False}
             else:
                 # Check if its join node:
