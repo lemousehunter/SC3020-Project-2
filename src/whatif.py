@@ -88,7 +88,7 @@ class QueryPlanManager:
                 query_mod = TypeModification(
                     node_type=mod.get('node_type'),
                     original_type=mod.get('original_type'),
-                    new_type=mod.get('new_type'),
+                    new_type=mod.get('newType'),
                     tables=set(mod.get('tables', [])),
                     node_id=mod.get('node_id', '')
                 )
