@@ -497,20 +497,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
         const strokeColor = isSelected ? '#FF4500' : '#000';
         const textColor = '#000';
 
-<<<<<<< HEAD
         const allowedAttributes = [
-          'node_type',
-          'cost',
-          'join_on',
-          'Hash Cond',
-          'join_order',
-          'position',
-        ];
-        const displayAttributes = Object.entries(nodeDatum)
-          .filter(([key]) => allowedAttributes.includes(key))
-          .map(([key, value]) => ({ key, value }));
-=======
-      const allowedAttributes = [
         'node_type',
         'cost',
         'join_on',
@@ -518,11 +505,10 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
         'join_order',
         'aliases',
         //'position',
-      ];
-      const displayAttributes = Object.entries(nodeDatum)
-        .filter(([key]) => allowedAttributes.includes(key))
-        .map(([key, value]) => ({ key, value }));
->>>>>>> e676fce073ea20f4217ac99fde53801920857299
+        ];
+        const displayAttributes = Object.entries(nodeDatum)
+          .filter(([key]) => allowedAttributes.includes(key))
+          .map(([key, value]) => ({ key, value }));
 
         const rowHeight = 20;
         const tablePadding = 10;
