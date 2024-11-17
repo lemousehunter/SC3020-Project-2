@@ -488,11 +488,11 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
         const isSelected = selectedNode && selectedNode.id === nodeDatum.id;
 
         const fillColor =
-          nodeDatum._join_or_scan === 'Scan'
-            ? '#FFD700'
-            : nodeDatum._join_or_scan === 'Unknown'
-              ? '#EAF6FB'
-              : '#B0D4FF';
+            nodeDatum._is_subquery_node ? '#D3D3D3' :
+              nodeDatum._join_or_scan === 'Scan'
+                ? '#FFD700'
+                : nodeDatum._join_or_scan === 'Unknown'
+                  ? '#D3D3D3' : '#B0D4FF'; // Use join_or_scan for color
 
         const strokeColor = isSelected ? '#FF4500' : '#000';
         const textColor = '#000';
@@ -572,11 +572,11 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
 
   const renderPreviewNode = ({ nodeDatum }: any) => {
     const fillColor =
-      nodeDatum._join_or_scan === 'Scan'
-        ? '#FFD700'
-        : nodeDatum._join_or_scan === 'Unknown'
-          ? '#EAF6FB'
-          : '#D3D3D3'; // Use join_or_scan for color
+      nodeDatum._is_subquery_node ? '#D3D3D3' :
+        nodeDatum._join_or_scan === 'Scan'
+          ? '#FFD700'
+          : nodeDatum._join_or_scan === 'Unknown'
+            ? '#D3D3D3' : '#B0D4FF'; // Use join_or_scan for color
 
     const strokeColor = '#000'; // Default stroke color
     const textColor = '#000'; // Default text color
