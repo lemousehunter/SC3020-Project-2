@@ -226,7 +226,7 @@ class DatabaseServer:
         self.app.json = SetEncoder(self.app)
         CORS(self.app, resources={
                     r"/api/*": {
-                        "origins": ["http://localhost:3001"],  # Set port here
+                        "origins": ["http://localhost:3000", "http://localhost:3001"],  # ADD YOUR WARNING PORT HERE
                         "methods": ["GET", "POST", "OPTIONS"],
                         "allow_headers": ["Content-Type"]
                     }
