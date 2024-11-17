@@ -14,6 +14,8 @@ import {
   Stack,
   Text,
   Title,
+  Modal,
+  Loader,
 } from '@mantine/core';
 import { ColorSchemeToggle } from '../components/ColorSchemeToggle/ColorSchemeToggle';
 import ModifiedSQLPanel from '../components/ModifiedSQLPanel';
@@ -31,6 +33,7 @@ export default function HomePage() {
     show: false,
   });
   const [query, setQuery] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false); // Loading state
 
   useEffect(() => {
     fetch('http://127.0.0.1:5000/api/database/available')
@@ -45,6 +48,8 @@ export default function HomePage() {
       setNotification({ message: 'Please select a database.', show: true });
       return;
     }
+
+    setLoading(true); // Show loading modal
 
     try {
       // Send the selected database to the backend API
@@ -67,6 +72,7 @@ export default function HomePage() {
 
       // Update the selected database in the state
       setSelectedDatabase(value);
+      setLoading(false); // Hide loading modal
     } catch (error) {
       console.error('Error selecting database:', error);
       setNotification({
@@ -142,6 +148,14 @@ export default function HomePage() {
     >
       <Stack spacing="md">
         <Welcome />
+
+        {/* Loading Modal */}
+        <Modal opened={loading} onClose={() => {}} withCloseButton={false} centered>
+          <Stack align="center" justify="center" spacing="xs">
+            <Loader size="lg" />
+            <Text>Loading, please wait...</Text>
+          </Stack>
+        </Modal>
 
         {notification.show && (
           <Notification
