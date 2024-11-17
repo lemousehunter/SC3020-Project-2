@@ -1,7 +1,8 @@
 import uuid
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Any, Hashable
 
 import networkx as nx
+from networkx import DiGraph
 from networkx.algorithms.dag import descendants
 
 from src.custom_types.qep_types import NodeType, ScanType, JoinType
@@ -404,39 +405,51 @@ class QEPParser:
         #print("join_aliases_d:", join_aliases_d)
         return join_aliases_d
 
-    @staticmethod
-    def _get_node_id_from_join_on(join_on: Tuple[str, str], join_node_id_map: Dict) -> str:
-        print("join_node_id_map:", join_node_id_map)
-        return join_node_id_map[join_on]
-
     def _replace_node_id_from_join_on(self, join_node_id_map: Dict):
         node_replace = {}
         for node_id, node_data in self.graph.nodes(data=True):
             if 'join_on' in node_data:
                 node_join_on = node_data.get('join_on')
-                og_node_id = self._get_node_id_from_join_on(node_join_on, join_node_id_map)
+                og_node_id = join_node_id_map[node_join_on]
                 node_replace[node_id] = og_node_id
 
+        return node_replace
+
+    def _replace_node_id_from_alias(self, alias_node_id_map: Dict):
+        node_replace = {}
+        for node_id, node_data in self.graph.nodes(data=True):
+            if 'aliases' in node_data and node_data['node_type'] in ScanType and node_data['node_type'] != "Hash":
+                if "_subplan" not in node_data or not node_data['_subplan']:
+                    node_alias = node_data.get('aliases')
+                    if len(node_alias) == 1:
+                        node_alias = next(iter(node_alias))
+                        og_node_id = alias_node_id_map[node_alias]
+                        node_replace[node_id] = og_node_id
+        print("node_replace_alias:", node_replace)
         return node_replace
 
     def _get_swappability(self) -> Dict[str, Dict[str, bool]]:
         swappablity_d = {}
         for node_id, node_data in self.graph.nodes(True):
-            # Check if its join node:
-            if "Join" in node_data['node_type'] or node_data['node_type'] == "Nested Loop":
-                swappablity_d[node_id] = {'_swappable': True}
-            else: # if not join node
-                # Check if parent is join
-                parent = list(self.graph.predecessors(node_id))[0]
-                parent_node_data = self.graph.nodes(True)[parent]
-                if "Join" in parent_node_data['node_type'] or parent_node_data['node_type'] == "Nested Loop":
+            # Check if it is a subquery node:
+            if node_data['_subplan']:
+                swappablity_d[node_id] = {'_swappable': False}
+            else:
+                # Check if its join node:
+                if "Join" in node_data['node_type'] or node_data['node_type'] == "Nested Loop":
                     swappablity_d[node_id] = {'_swappable': True}
-                else:
-                    swappablity_d[node_id] = {'_swappable': False}
+                else: # if not join node
+                    # Check if parent is join
+                    parent = list(self.graph.predecessors(node_id))[0]
+                    parent_node_data = self.graph.nodes(True)[parent]
+                    if "Join" in parent_node_data['node_type'] or parent_node_data['node_type'] == "Nested Loop":
+                        swappablity_d[node_id] = {'_swappable': True}
+                    else:
+                        swappablity_d[node_id] = {'_swappable': False}
         return swappablity_d
 
 
-    def parse(self, qep_data: List, join_node_id_map: Dict) -> Tuple[nx.DiGraph, List, Dict[str, str], Dict[Tuple[str, str], str]]:
+    def parse(self, qep_data: List, join_node_id_map: Dict, scan_node_id_map: Dict) -> Tuple[nx.DiGraph, Dict, Dict, Dict, Dict]:
         """Parse the QEP data into a networkX graph."""
         self.graph.clear()
 
@@ -508,13 +521,13 @@ class QEPParser:
 
         if join_node_id_map:
             # Replace node id from join on
-            node_replace = self._replace_node_id_from_join_on(
+            join_node_replace = self._replace_node_id_from_join_on(
                 join_node_id_map
             )
-            self.graph = nx.relabel_nodes(self.graph, node_replace)
+            self.graph = nx.relabel_nodes(self.graph, join_node_replace)
 
             # Replace node ids in ordered join pairs
-            ordered_join_pairs = [(join_pair, node_replace[node_id]) for join_pair, node_id in ordered_join_pairs]
+            ordered_join_pairs = [(join_pair, join_node_replace[node_id]) for join_pair, node_id in ordered_join_pairs]
         else:
             join_node_id_map = {}
 
@@ -523,12 +536,31 @@ class QEPParser:
                 join_node_id_map[join_pair] = node_id
                 join_node_id_map[(join_pair[-1], join_pair[0])] = node_id
 
+
+        if scan_node_id_map:
+            # Replace node id from alias
+            print("scan node id map exists")
+            alias_node_replace = self._replace_node_id_from_alias(
+                scan_node_id_map
+            )
+            print("alias_node_replace:", alias_node_replace)
+            self.graph = nx.relabel_nodes(self.graph, alias_node_replace)
+
+        else:
+            scan_node_id_map = {}
+
+            # Return the node ids for scans
+            for node_id, node_data in self.graph.nodes(data=True):
+                if node_data['node_type'] in ScanType and node_data['node_type'] != "Hash":
+                    for alias in node_data['aliases']:
+                        scan_node_id_map[alias] = node_id
+
         swap_d = self._get_swappability()
 
         # set swappability as node attribute
         nx.set_node_attributes(self.graph, swap_d)
 
-        return self.graph, ordered_join_pairs, self.alias_map, join_node_id_map
+        return self.graph, ordered_join_pairs, self.alias_map, join_node_id_map, scan_node_id_map
 
 
 if __name__ == "__main__":
