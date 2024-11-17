@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { IconX } from '@tabler/icons-react';
+import { IconX, IconCheck } from '@tabler/icons-react';
 import {
   AppShell,
   Box,
@@ -16,6 +16,7 @@ import {
   Title,
   Modal,
   Loader,
+    useMantineColorScheme,
 } from '@mantine/core';
 import { ColorSchemeToggle } from '../components/ColorSchemeToggle/ColorSchemeToggle';
 import ModifiedSQLPanel from '../components/ModifiedSQLPanel';
@@ -34,6 +35,13 @@ export default function HomePage() {
   });
   const [query, setQuery] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false); // Loading state
+
+  const { setColorScheme } = useMantineColorScheme(); // Destructure the setColorScheme function
+
+  useEffect(() => {
+    // Set the color scheme to dark on component mount
+    setColorScheme('dark');
+  }, [setColorScheme]); // Run only once when the component mounts
 
   useEffect(() => {
     fetch('http://127.0.0.1:5000/api/database/available')
@@ -149,6 +157,30 @@ export default function HomePage() {
       <Stack spacing="md">
         <Welcome />
 
+        {notification.show && (
+          <Notification
+            icon={
+              notification.message.includes('successfully') ? (
+                <IconCheck style={{ width: rem(20), height: rem(20) }} />
+              ) : (
+                <IconX style={{ width: rem(20), height: rem(20) }} />
+              )
+            } // Use IconCheck for success
+            color={notification.message.includes('successfully') ? 'green' : 'red'} // Use green for success
+            title={notification.message.includes('successfully') ? 'Success' : 'Error'} // Set title accordingly
+            onClose={() => setNotification((prev) => ({ ...prev, show: false }))}
+            style={{
+              position: 'fixed',
+              bottom: rem(20),
+              left: rem(20),
+              width: rem(300),
+              zIndex: 1000,
+            }}
+          >
+            {notification.message}
+          </Notification>
+        )}
+
         {/* Loading Modal */}
         <Modal opened={loading} onClose={() => {}} withCloseButton={false} centered>
           <Stack align="center" justify="center" spacing="xs">
@@ -193,7 +225,7 @@ export default function HomePage() {
         <Grid mr="xl" ml="xl" mb="md">
           {/* Left side: Query Panel with Modified SQL Panel below */}
           <Grid.Col span={4}>
-            <QueryPanel onSubmit={handleQuerySubmit} />
+            <QueryPanel onSubmit={handleQuerySubmit} isDisabled={!!qepData} />
             <Divider mt="md" />
             <ModifiedSQLPanel modifiedSQL={modifiedSQL} />
           </Grid.Col>
