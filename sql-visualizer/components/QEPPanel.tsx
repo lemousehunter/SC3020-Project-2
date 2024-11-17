@@ -407,7 +407,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
             ? '#FFD700'
             : nodeDatum._join_or_scan === 'Unknown'
               ? '#EAF6FB'
-              : '#D3D3D3';
+              : '#B0D4FF';
 
         const strokeColor = isSelected ? '#FF4500' : '#000';
         const textColor = '#000';
