@@ -26,7 +26,7 @@ class DatabaseServer:
         self.app.json = SetEncoder(self.app)
         CORS(self.app, resources={
             r"/api/*": {
-                "origins": ["http://localhost:3001"],  # Your NextJS development server
+                "origins": ["http://localhost:3000", "http://localhost:3001"],  # Your NextJS development server
                 "methods": ["GET", "POST", "OPTIONS"],
                 "allow_headers": ["Content-Type"]
             }
