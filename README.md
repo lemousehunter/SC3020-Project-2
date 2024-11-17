@@ -146,7 +146,9 @@ Then type:
 ```
 npm install -g yarn
 ```
-
+```
+npm install
+```
 ```
 yarn install
 ```
