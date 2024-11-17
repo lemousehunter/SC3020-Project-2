@@ -229,8 +229,8 @@ class DatabaseServer:
                 })
 ```
 
-
-
+### Step 7: Need to wait when select database
+You need to wait a while when you select the database until the sucessful message pop up on your screen, **DO NOT** spam click the database.
 
 
 
