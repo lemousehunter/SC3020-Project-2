@@ -266,7 +266,7 @@ class QEPModifier:
     def _swap_join_order(self, modification: Union[InterJoinOrderModification, InterJoinOrderModificationSpecced]):
         if isinstance(modification, InterJoinOrderModification): # get node by id
             join_node_1_id: str = modification.join_node_1_id
-            join_node_2_id: str = modification.join_node_1_id
+            join_node_2_id: str = modification.join_node_2_id
         else: # is JoinOrderModificationSpecced
             print("isJoinOrderModificationSpecced")
             print("modification.join_order_1:", modification.join_order_1)
@@ -281,6 +281,9 @@ class QEPModifier:
         join_node_1_data = deepcopy(self.graph.nodes(True)[join_node_1_id])
         join_node_2_data = deepcopy(self.graph.nodes(True)[join_node_2_id])
 
+        print("join_node_1_data:", join_node_1_data)
+        print("join_node_2_data:", join_node_2_data)
+
         # Save parents
         join_node_1_parent = None
         join_node_2_parent = None
@@ -288,7 +291,7 @@ class QEPModifier:
             join_node_1_parent = deepcopy(list(self.graph.predecessors(join_node_1_id))[0])
         if not join_node_2_data['is_root']:
             join_node_2_parent = deepcopy(list(self.graph.predecessors(join_node_2_id))[0])
-
+        print("Saved parents")
         # Save children
         join_node_1_children = deepcopy(list(self.graph.successors(join_node_1_id)))
         join_node_2_children = deepcopy(list(self.graph.successors(join_node_2_id)))
@@ -489,6 +492,7 @@ class QEPModifier:
         # remove conditions from nodes
         self.remove_cond_attributes()
         self.clear_costs()
+        QEPVisualizer(self.graph).visualize(VIZ_DIR / "CANCERmodified_qep_tree.png")
         return self.graph, self.modifications
 
     def reset(self):

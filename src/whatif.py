@@ -43,8 +43,16 @@ class QueryPlanManager:
         node_1_id = mod['node_1_id']
         node_2_id = mod['node_2_id']
 
-        node_1_data = self.original_graph.nodes(True)[node_1_id]
-        node_2_data = self.original_graph.nodes(True)[node_2_id]
+        print(self.original_graph.nodes(True))
+
+        node_1_data = None
+        node_2_data = None
+
+        for node_id, node_data in self.original_graph.nodes(True):
+            if node_id == node_1_id:
+                node_1_data = node_data
+            if node_id == node_2_id:
+                node_2_data = node_data
 
         node_1_type = node_1_data['node_type']
         node_2_type = node_2_data['node_type']
@@ -55,14 +63,17 @@ class QueryPlanManager:
                 join_node_1_id=node_1_id,
                 join_node_2_id=node_2_id
             )
+            print("gotten inter join query mod:", query_mod)
         else: # if either one is not join type, then is IntraJoinChange
             # get parent of either will do
             parent = list(self.original_graph.predecessors(node_1_id))[0]
             query_mod =IntraJoinOrderModification(
                 join_node_id=parent
             )
+            print("gotten intra join query mod:", query_mod)
 
         return query_mod
+
 
     def _modify_graph(self, modifications: List[Dict]) -> Tuple[nx.DiGraph, List]:
         if not self.original_graph:
@@ -81,12 +92,15 @@ class QueryPlanManager:
                     tables=set(mod.get('tables', [])),
                     node_id=mod.get('node_id', '')
                 )
+                qep_modifier.add_modification(query_mod)
                 modification_lst.append(query_mod)
             elif modification_type == "JoinOrderChange":
                 query_mod = self._determine_join_order_change_type(mod)
+                modification_lst.append(query_mod)
+                qep_modifier.add_modification(query_mod)
+                print("Join Order Change Modification:", query_mod)
             else:
                 raise ValueError(f"Invalid modification type: {modification_type}")
-            qep_modifier.add_modification(query_mod)
 
         print("modifications:", modification_lst)
 
@@ -131,6 +145,8 @@ class QueryPlanManager:
         modified_graph, mods_lst = self._modify_graph(mod_lst)
 
         modified_graph_json = self._convert_graph_to_dict(modified_graph)
+
+        print("modified_graph_json:", modified_graph_json)
 
         return modified_graph_json
 

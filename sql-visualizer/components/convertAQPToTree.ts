@@ -65,15 +65,17 @@ export function convertAQPToTree(aqpData: AQPData) {
   });
 
   // Step 3: Identify the root node using the `isRoot` field
-  const rootNode = Array.from(nodeMap.values()).find((node) => node.isRoot);
+  const rootNode = Array.from(nodeMap.values()).find((node) => node.is_root);
 
   if (!rootNode) {
     console.warn('Root node not found. Using fallback node.');
+  } else {
+    console.log('Root node:', rootNode);
   }
 
   // Debugging output for final structure
   console.log('NodeMap structure:', Array.from(nodeMap.values()));
 
   // Step 4: Return the tree starting from the root node
-  return rootNode || nodeMap.values().next().value; // Return root or fallback
+  return rootNode;
 }

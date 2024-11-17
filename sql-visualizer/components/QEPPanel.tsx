@@ -65,6 +65,10 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   }, [qepData]);
 
   useEffect(() => {
+    console.log("Modified tree data updated:", modifiedTreeData);
+}, [modifiedTreeData]);
+
+  useEffect(() => {
     if (treeContainerRef.current) {
       const { clientWidth, clientHeight } = treeContainerRef.current;
 
@@ -311,19 +315,81 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
     }
   };
 
-  const previewOrderChange = (node: any) => {
-    // Add logic to modify the node's order or mark the node for order preview.
-    setPendingChanges((prevChanges) => [
-      ...prevChanges,
+  const previewOrderChange = async () => {
+    if (!selectedNode || selectedNode.length < 2) {
+      setShowErrorNotification(true);
+      setTimeout(() => setShowErrorNotification(false), 3000);
+      return;
+    }
+
+    const [node1, node2] = selectedNode;
+
+    const modifications = [
       {
-        id: node.id,
-        newOrder: 'SomeOrderLogic', // Replace with actual logic to determine new order
-        originalOrder: node.type,
-        mod_type: 'OrderChange',
+        mod_type: 'JoinOrderChange',
+        node_1_id: node1.id,
+        node_2_id: node2.id,
       },
-    ]);
-    setSelectedNode(null); // Deselect node after change
+    ];
+
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/preview_join_swaps', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ modifications }),
+      });
+
+      if (response.ok) {
+        const responseData = await response.json();
+
+        console.log('API Response:', responseData);
+
+        const networkx_object = responseData.networkx_object;
+
+        if (!networkx_object) {
+          console.error('Error: updated_networkx_object is missing from the response.');
+          setShowErrorNotification(true);
+          setNotification({
+            message:
+              'Error: updated_networkx_object is missing in the response. Please check with the API.',
+            show: true,
+          });
+          return;
+        }
+
+        console.log(networkx_object);
+
+        const tree = convertAQPToTree(networkx_object);
+        console.log('Converted data to tree:', tree);
+        console.log("before set modifiedTreeData:", modifiedTreeData);
+        setModifiedTreeData(JSON.parse(JSON.stringify(tree)));
+        //setModifiedTreeData(null);
+        //setModifiedTreeData(JSON.parse(JSON.stringify(tree)));
+        console.log("modifiedTreeData:", modifiedTreeData);
+        console.log(JSON.parse(JSON.stringify(tree)));
+        console.log("Set generated data");
+        setPendingChanges((prevChanges) => [
+        ...prevChanges,
+        {
+          id: selectedNode.id,
+          newType: selectedNode.newType,
+          originalType: selectedNode.type,
+        },
+      ]);
+
+      setSelectedNode(null);
+        setShowSuccessNotification(true);
+      } else {
+        throw new Error('Failed to preview join order change');
+      }
+    } catch (error) {
+      console.error('Error previewing join order change:', error);
+      setShowErrorNotification(true);
+    }
   };
+
 
   const getRenderQEPNode = () => {
   if (modificationType === 'OrderChange') {
@@ -508,6 +574,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
 
 
   const renderPreviewNode = ({ nodeDatum }: any) => {
+    console.log("renderPreviewNode is called");
     const fillColor =
       nodeDatum._join_or_scan === 'Scan'
         ? '#FFD700'
