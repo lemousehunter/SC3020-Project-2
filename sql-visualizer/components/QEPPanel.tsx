@@ -112,34 +112,48 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   };
 
   const handleNodeClick = (node: any) => {
-    if (modificationType === 'OrderChange') {
-      if (firstSelectedNode === null) {
-        // Set the first selected node
-        setFirstSelectedNode(node.data);
-      }
+  if (modificationType === 'OrderChange') {
+    setSelectedNode((prev: SelectedNodeOrderChange | null) => {
+      const prevArray = Array.isArray(prev) ? prev : []; // Ensure `prev` is an array
+      const isAlreadySelected = prevArray.some((n) => n.id === node.data.id);
 
-      // Only allow selecting swappable nodes based on criteria
-      setSelectedNode((prev: SelectedNodeOrderChange | null) => {
-        const prevArray = Array.isArray(prev) ? prev : []; // Ensure prev is an array
-        if (prevArray.some((n) => n.id === node.data.id)) {
-          // Deselect if the node is already selected
-          return prevArray.filter((n) => n.id !== node.data.id);
+      if (isAlreadySelected) {
+        // Deselect the node
+        const updatedSelection = prevArray.filter((n) => n.id !== node.data.id);
+
+        // Reset `firstSelectedNode` if the last selected node is deselected
+        if (updatedSelection.length === 0) {
+          setFirstSelectedNode(null);
+        } else if (updatedSelection.length === 1) {
+          // Update `firstSelectedNode` to the remaining node
+          setFirstSelectedNode(findNodeById(qepTreeData, updatedSelection[0].id));
         }
+
+        return updatedSelection;
+      } else {
         if (prevArray.length < 2) {
+          // Add the node to the selection
+          if (prevArray.length === 0) {
+            // Set the first selected node if this is the first selection
+            setFirstSelectedNode(node.data);
+          }
           return [...prevArray, { id: node.data.id, type: node.data.type }];
         }
-        return prevArray; // Keep as-is if already 2 nodes selected
-      });
-    } else if (modificationType === 'TypeChange') {
-      if (node.data._join_or_scan !== 'Unknown') {
-        setSelectedNode({
-          id: node.data.id,
-          type: node.data.type,
-          _join_or_scan: node.data._join_or_scan,
-        });
       }
+
+      return prevArray; // Keep as-is if already 2 nodes selected
+    });
+  } else if (modificationType === 'TypeChange') {
+    if (node.data._join_or_scan !== 'Unknown') {
+      setSelectedNode({
+        id: node.data.id,
+        type: node.data.type,
+        _join_or_scan: node.data._join_or_scan,
+      });
     }
-  };
+  }
+};
+
 
   // Helper function to determine if a node should be disabled
   const isNodeDisabled = (nodeDatum: any) => {
