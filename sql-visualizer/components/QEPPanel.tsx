@@ -329,9 +329,15 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   if (modificationType === 'OrderChange') {
     // Return the Order Change renderer
     return ({ nodeDatum, hierarchyPointNode }: any) => {
-      const isDisabled = isNodeDisabled(nodeDatum);
+      const maxSelectableNodes = 2;
       const isSelected =
         Array.isArray(selectedNode) && selectedNode.some((node) => node.id === nodeDatum.id);
+
+      // Disable all other nodes if two nodes are selected
+      const isDisabled =
+        selectedNode && selectedNode.length === maxSelectableNodes
+          ? !isSelected // Disable nodes not in the selection
+          : isNodeDisabled(nodeDatum); // Use existing logic if less than 2 nodes selected
 
       const fillColor = isDisabled
         ? '#D3D3D3'
