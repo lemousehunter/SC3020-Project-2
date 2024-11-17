@@ -143,7 +143,6 @@ class DatabaseServer:
 
         if not query or not self.db_connection:
             return jsonify({"status": "error", "message": "Invalid request"}), 400
-
         try:
             result = self.query_plan_manager.modify_plan(query, modifications, self.db_connection)
             return jsonify({

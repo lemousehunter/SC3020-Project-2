@@ -114,6 +114,9 @@ class QueryPlanManager:
 
         original_cost = self.parser.get_total_cost()
 
+        print("IN MODIFY PLAN")
+        print("modifications:", modifications)
+
         modified_graph, mods_lst = self._modify_graph(modifications)
 
         # Generate hints

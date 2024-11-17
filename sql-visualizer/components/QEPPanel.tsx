@@ -33,9 +33,19 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   const [qepTreeData, setQepTreeData] = useState<any | null>(null);
   const [modifiedTreeData, setModifiedTreeData] = useState<any | null>(null);
   const [selectedNode, setSelectedNode] = useState<any | null>(null);
-  const [pendingChanges, setPendingChanges] = useState<
-    { id: string; newType: string; originalType: string }[]
-  >([]);
+  type PendingChange =
+  | {
+      mod_type: 'TypeChange';
+      node_id: string;
+      newType: string;
+      originalType: string;
+    }
+  | {
+      mod_type: 'JoinOrderChange';
+      node_1_id: string;
+      node_2_id: string;
+    };
+  const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const [showErrorNotification, setShowErrorNotification] = useState(false);
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
   const [qepTranslate, setQepTranslate] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -201,7 +211,8 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
       setPendingChanges((prevChanges) => [
         ...prevChanges,
         {
-          id: selectedNode.id,
+          mod_type: 'TypeChange',
+          node_id: selectedNode.id,
           newType: selectedNode.newType,
           originalType: selectedNode.type,
         },
@@ -233,87 +244,79 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
   };
 
   const generateAQP = async () => {
-    if (pendingChanges.length === 0) {
-      setShowErrorNotification(true);
-      setTimeout(() => setShowErrorNotification(false), 3000);
-      return;
-    }
+  if (pendingChanges.length === 0) {
+    setShowErrorNotification(true);
+    setTimeout(() => setShowErrorNotification(false), 3000);
+    return;
+  }
 
-    const modifications = pendingChanges.map((change) => {
-      const node = findNodeById(modifiedTreeData, change.id);
-      return {
-        node_type: node?.type?.toUpperCase() || 'N/A', // Maps `join_or_scan` to `node_type`
-        original_type: change.originalType,
-        new_type: change.newType,
-        mod_type: 'TypeChange',
-        node_id: change.id,
-      };
+  console.log("pendingChanges:", pendingChanges);
+
+  const requestBody = {
+    query,
+    modifications: pendingChanges,
+  };
+
+  console.log('Request Body:', requestBody);
+
+  try {
+    const response = await fetch('http://127.0.0.1:5000/api/query/modify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
     });
 
-    const requestBody = {
-      query,
-      modifications,
-    };
+    if (response.ok) {
+      const responseData = await response.json();
 
-    console.log(requestBody);
+      console.log('API Response:', responseData);
 
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/query/modify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
+      const modifiedSql = responseData.modified_sql_query || '';
+      const originalCost = responseData.cost_comparison?.original || 'Error';
+      const modifiedCost = responseData.cost_comparison?.modified || 'Error';
+      const updatedNetworkXObject = responseData.updated_networkx_object;
+      const hints = responseData.hints || {};
 
-      if (response.ok) {
-        const responseData = await response.json();
-
-        console.log('API Response:', responseData);
-
-        const modifiedSql = responseData.modified_sql_query || '';
-        const originalCost = responseData.cost_comparison?.original || 'Error';
-        const modifiedCost = responseData.cost_comparison?.modified || 'Error';
-        const updatedNetworkXObject = responseData.updated_networkx_object;
-        const hints = responseData.hints || {};
-
-        if (!updatedNetworkXObject) {
-          console.error('Error: updated_networkx_object is missing from the response.');
-          setShowErrorNotification(true);
-          setNotification({
-            message:
-              'Error: updated_networkx_object is missing in the response. Please check with the API.',
-            show: true,
-          });
-          return;
-        }
-
-        setModifiedSQL(modifiedSql);
-        setTotalCostOriginalQEP(originalCost);
-        setTotalCostAQP(modifiedCost);
-        setApiHints(hints);
-
-        applyWhatIfChanges(modifiedSql);
-
-        console.log(updatedNetworkXObject);
-
-        const aqpTreeData = convertAQPToTree(updatedNetworkXObject);
-        setGeneratedAQPData(aqpTreeData);
-
-        setPendingChanges([]);
-        setShowSuccessNotification(true);
-      } else {
-        throw new Error('Failed to generate AQP');
+      if (!updatedNetworkXObject) {
+        console.error('Error: updated_networkx_object is missing from the response.');
+        setShowErrorNotification(true);
+        setNotification({
+          message:
+            'Error: updated_networkx_object is missing in the response. Please check with the API.',
+          show: true,
+        });
+        return;
       }
-    } catch (error) {
-      console.error('Error generating AQP:', error);
-      setShowErrorNotification(true);
-      setNotification({
-        message: 'Error generating AQP. Please try again later or check the server logs.',
-        show: true,
-      });
+
+      setModifiedSQL(modifiedSql);
+      setTotalCostOriginalQEP(originalCost);
+      setTotalCostAQP(modifiedCost);
+      setApiHints(hints);
+
+      applyWhatIfChanges(modifiedSql);
+
+      console.log('Updated NetworkX Object:', updatedNetworkXObject);
+
+      const aqpTreeData = convertAQPToTree(updatedNetworkXObject);
+      setGeneratedAQPData(aqpTreeData);
+
+      setPendingChanges([]);
+      setShowSuccessNotification(true);
+    } else {
+      throw new Error('Failed to generate AQP');
     }
-  };
+  } catch (error) {
+    console.error('Error generating AQP:', error);
+    setShowErrorNotification(true);
+    setNotification({
+      message: 'Error generating AQP. Please try again later or check the server logs.',
+      show: true,
+    });
+  }
+};
+
 
   const previewOrderChange = async () => {
     if (!selectedNode || selectedNode.length < 2) {
@@ -373,9 +376,9 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
         setPendingChanges((prevChanges) => [
         ...prevChanges,
         {
-          id: selectedNode.id,
-          newType: selectedNode.newType,
-          originalType: selectedNode.type,
+          mod_type: 'JoinOrderChange',
+          node_1_id: node1.id,
+          node_2_id: node2.id,
         },
       ]);
 

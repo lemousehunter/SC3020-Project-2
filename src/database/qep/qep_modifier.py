@@ -492,7 +492,7 @@ class QEPModifier:
         # remove conditions from nodes
         self.remove_cond_attributes()
         self.clear_costs()
-        QEPVisualizer(self.graph).visualize(VIZ_DIR / "CANCERmodified_qep_tree.png")
+        #QEPVisualizer(self.graph).visualize(VIZ_DIR / "CANCERmodified_qep_tree.png")
         return self.graph, self.modifications
 
     def reset(self):
