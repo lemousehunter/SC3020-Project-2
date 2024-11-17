@@ -407,37 +407,23 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
             ? '#FFD700'
             : nodeDatum._join_or_scan === 'Unknown'
               ? '#EAF6FB'
-              : '#B0D4FF';
+              : '#D3D3D3';
 
         const strokeColor = isSelected ? '#FF4500' : '#000';
         const textColor = '#000';
 
-<<<<<<< HEAD
         const allowedAttributes = [
-          'node_type',
-          'cost',
-          'join_on',
-          'Hash Cond',
-          'join_order',
-          'position',
-        ];
-        const displayAttributes = Object.entries(nodeDatum)
-          .filter(([key]) => allowedAttributes.includes(key))
-          .map(([key, value]) => ({ key, value }));
-=======
-      const allowedAttributes = [
-        'node_type',
-        'cost',
-        'join_on',
-        'Hash Cond',
-        'join_order',
-          'aliases'
-        //'position',
-      ];
-      const displayAttributes = Object.entries(nodeDatum)
-        .filter(([key]) => allowedAttributes.includes(key))
-        .map(([key, value]) => ({ key, value }));
->>>>>>> e676fce073ea20f4217ac99fde53801920857299
+                'node_type',
+                'cost',
+                'join_on',
+                'Hash Cond',
+                'join_order',
+                  'aliases'
+                //'position',
+              ];
+              const displayAttributes = Object.entries(nodeDatum)
+                .filter(([key]) => allowedAttributes.includes(key))
+                .map(([key, value]) => ({ key, value }));
 
         const rowHeight = 20;
         const tablePadding = 10;
@@ -604,7 +590,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
         ? '#FFD700'
         : nodeDatum._join_or_scan === 'Unknown'
           ? '#EAF6FB'
-          : '#B0D4FF'; // Use join_or_scan for color
+          : '#D3D3D3'; // Use join_or_scan for color
 
     const strokeColor = '#000'; // Default stroke color
     const textColor = '#000'; // Default text color
