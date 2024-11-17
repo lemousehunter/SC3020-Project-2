@@ -657,7 +657,7 @@ export default function QEPPanel({ applyWhatIfChanges, qepData, query }: QEPPane
                     zoom={aqpZoom}
                     nodeSize={{ x: 120, y: 200 }}
                     separation={{ siblings: 2, nonSiblings: 2.5 }}
-                    renderCustomNodeElement={renderQEPNode} // Assuming renderQEPNode can handle generated AQP nodes
+                    renderCustomNodeElement={getRenderQEPNode} // Assuming renderQEPNode can handle generated AQP nodes
                     collapsible={false}
                   />
                   {totalCostAQP !== null && (
