@@ -99,6 +99,7 @@ class QEPParser:
                 node_data = self.graph.nodes(data=True)[node_id]
                 if "Join" in node_data['node_type'] or node_data['node_type'] == "Nested Loop":
                     join_pair = self._get_single_join_pair(node_id)
+                    print("join_pair is:", join_pair)
                     if join_pair:
                         print("_join_table_aliases:", node_data['_join_table_aliases'])
                         print("nested loop join pair:", join_pair)
@@ -115,7 +116,18 @@ class QEPParser:
                         else:
                             _join_order = node_data['_join_order']
                             if len(_join_order) == 2:
-                                join_pair = tuple(_join_order)
+                                confirmed_alias = None
+                                unconfirmed_alias = None
+                                for idx, element in enumerate(_join_order):
+                                    if type(element) == str:
+                                        confirmed_alias = element
+                                    else:
+                                        unconfirmed_alias = element
+
+                                if type(unconfirmed_alias) == list:
+                                    unconfirmed_alias = unconfirmed_alias[0]
+
+                                join_pair = tuple([confirmed_alias, unconfirmed_alias])
                                 print("2 length join pair:", join_pair)
 
                     ordered_join_pairings_d[node_id] = {'join_on': join_pair}
@@ -441,10 +453,17 @@ class QEPParser:
                     swappablity_d[node_id] = {'_swappable': True}
                 else: # if not join node
                     # Check if parent is join
-                    parent = list(self.graph.predecessors(node_id))[0]
-                    parent_node_data = self.graph.nodes(True)[parent]
-                    if "Join" in parent_node_data['node_type'] or parent_node_data['node_type'] == "Nested Loop":
-                        swappablity_d[node_id] = {'_swappable': True}
+                    print(f"is not join, is {node_data['node_type']}")
+
+                    pred = list(self.graph.predecessors(node_id))
+                    print("pred:", pred)
+                    if pred:
+                        parent = pred[0]
+                        parent_node_data = self.graph.nodes(True)[parent]
+                        if "Join" in parent_node_data['node_type'] or parent_node_data['node_type'] == "Nested Loop":
+                            swappablity_d[node_id] = {'_swappable': True}
+                        else:
+                            swappablity_d[node_id] = {'_swappable': False}
                     else:
                         swappablity_d[node_id] = {'_swappable': False}
         return swappablity_d
@@ -532,8 +551,11 @@ class QEPParser:
         else:
             join_node_id_map = {}
 
+            print("ordered_join_pairs:", ordered_join_pairs)
+
             # Return the node ids for the ordered join pairs
             for join_pair, node_id in ordered_join_pairs:
+                print("join_pair:", join_pair)
                 join_node_id_map[join_pair] = node_id
                 join_node_id_map[(join_pair[-1], join_pair[0])] = node_id
 
@@ -571,26 +593,35 @@ if __name__ == "__main__":
 
     # 1. Set up the database and get the original query plan
     db_manager = DatabaseManager('TPC-H')
-    query = """
-        select 
-        /*+ Leading( ( ( (l2 l s) o) c) ) NestLoop(c o l s) */
-        * 
-    from customer C, orders O, lineitem L, supplier S
-    where C.c_custkey = O.o_custkey 
-      and O.o_orderkey = L.l_orderkey
-      and L.l_suppkey = S.s_suppkey
-      and L.l_quantity > (
-        select avg(L2.l_quantity) 
-        from lineitem L2 
-        where L2.l_suppkey = S.s_suppkey
-      )
+    query = """select
+	L.l_orderkey,
+	sum(L.l_extendedprice * (1 - l_discount)) as revenue,
+	O.o_orderdate,
+	O.o_shippriority
+from
+	customer C,
+	orders O,
+	lineitem L
+where
+	C.c_mktsegment = 'BUILDING'
+	and C.c_custkey = O.o_custkey
+	and L.l_orderkey = O.o_orderkey
+	and O.o_totalprice < 50000
+	and L.l_extendedprice > 1200
+group by
+	L.l_orderkey,
+	O.o_orderdate,
+	O.o_shippriority
+order by
+	revenue desc,
+	o_orderdate
         """
 
     qep_data = db_manager.get_qep(query)
 
     # 2. Parse the original plan
     parser = QEPParser()
-    original_graph, ordered_join_pairs, alias_map, join_id  = parser.parse(qep_data)
+    original_graph, ordered_relation_pairs, alias_map, join_node_id_map, scan_node_id_map = parser.parse(qep_data, None, None)
 
     # 3. Visualize the original plan
     QEPVisualizer(original_graph).visualize(VIZ_DIR / "original_qep.png")
