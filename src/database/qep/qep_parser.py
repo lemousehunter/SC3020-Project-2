@@ -86,6 +86,13 @@ class QEPParser:
 
         print("still not found:", node_data['node_type'])
 
+    @staticmethod
+    def _join_order_no_nested(join_order):
+        for order in join_order:
+            if type(order) == list:
+                return False
+        return True
+
     def _get_join_pairings_in_order(self) -> Tuple[List[Tuple[Tuple[str, str], str]], Dict]:
         # incrementally parse each join node from bottom up (and left to right, each level will be a list) to get join pairings
         # Start from the lowest level, travel upwards breadth-first
@@ -116,20 +123,19 @@ class QEPParser:
                         else:
                             _join_order = node_data['_join_order']
                             if len(_join_order) == 2:
-                                confirmed_alias = None
-                                unconfirmed_alias = None
-                                for idx, element in enumerate(_join_order):
-                                    if type(element) == str:
-                                        confirmed_alias = element
-                                    else:
-                                        unconfirmed_alias = element
+                                if self._join_order_no_nested(_join_order):
+                                    join_pair = tuple(_join_order)
+                                else:
+                                    first = _join_order[0]
+                                    second = _join_order[1]
+                                    if type(first) == list:
+                                        first = first[0]
+                                    if type(second) == list:
+                                        second = second[0]
 
-                                if type(unconfirmed_alias) == list:
-                                    unconfirmed_alias = unconfirmed_alias[0]
-
-                                join_pair = tuple([confirmed_alias, unconfirmed_alias])
-                                print("___join_order:", _join_order)
-                                print("2 length join pair:", join_pair)
+                                    join_pair = tuple([first, second])
+                                    print("___join_order:", _join_order)
+                                    print("2 length join pair:", join_pair)
 
                     ordered_join_pairings_d[node_id] = {'join_on': join_pair}
 
@@ -595,24 +601,35 @@ if __name__ == "__main__":
     # 1. Set up the database and get the original query plan
     db_manager = DatabaseManager('TPC-H')
     query = """select
-	l_orderkey,
-	sum(l_extendedprice * (1 - l_discount)) as revenue,
-	o_orderdate,
-	o_shippriority
+	ps_partkey,
+	sum(ps_supplycost * ps_availqty) as value
 from
-	customer,
-	orders,
-	lineitem
+	partsupp,
+	supplier,
+	nation
 where
-	c_mktsegment = 'HOUSEHOLD'
-	and o_orderdate < date '1995-03-21'
-	and l_shipdate > date '1995-03-21'
+	ps_suppkey = s_suppkey
+	and s_nationkey = n_nationkey
+	and n_name = 'GERMANY'
+	and ps_supplycost > 2400
+	and s_acctbal > 25000
 group by
-	l_orderkey,
-	o_orderdate,
-	o_shippriority
+	ps_partkey having
+		sum(ps_supplycost * ps_availqty) > (
+			select
+				sum(ps_supplycost * ps_availqty) * 0.0001000000
+			from
+				partsupp,
+				supplier,
+				nation
+			where
+				ps_suppkey = s_suppkey
+				and s_nationkey = n_nationkey
+				and n_name = 'GERMANY'
+		)
 order by
-	revenue desc;
+	value desc
+
 """
 
     qep_data = db_manager.get_qep(query)

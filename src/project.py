@@ -143,19 +143,20 @@ class DatabaseServer:
 
         if not query or not self.db_connection:
             return jsonify({"status": "error", "message": "Invalid request"}), 400
-        try:
-            result = self.query_plan_manager.modify_plan(query, modifications, self.db_connection)
-            return jsonify({
-                "status": "success",
-                "message": "QEP modifications applied successfully",
-                "modified_sql_query": result["modified_query"],
-                "cost_comparison": result["costs"],
-                "updated_networkx_object": result["graph"],
-                "hints": result["hints"],
-                "changes_lst": result['changes_lst']
-            }), 200
-        except Exception as e:
-            return jsonify({"status": "error", "message": str(e)}), 500
+        #try:
+        result = self.query_plan_manager.modify_plan(query, modifications, self.db_connection)
+        return jsonify({
+            "status": "success",
+            "message": "QEP modifications applied successfully",
+            "modified_sql_query": result["modified_query"],
+            "cost_comparison": result["costs"],
+            "updated_networkx_object": result["graph"],
+            "hints": result["hints"],
+            "changes_lst": result['changes_lst']
+        }), 200
+        """except Exception as e:
+            print(e)
+            return jsonify({"status": "error", "message": str(e)}), 500"""
 
     def run(self, debug: bool = True, port: int = 5000):
         """Run the Flask server"""
