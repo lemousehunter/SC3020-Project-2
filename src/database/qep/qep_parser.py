@@ -128,6 +128,7 @@ class QEPParser:
                                     unconfirmed_alias = unconfirmed_alias[0]
 
                                 join_pair = tuple([confirmed_alias, unconfirmed_alias])
+                                print("___join_order:", _join_order)
                                 print("2 length join pair:", join_pair)
 
                     ordered_join_pairings_d[node_id] = {'join_on': join_pair}
@@ -594,28 +595,25 @@ if __name__ == "__main__":
     # 1. Set up the database and get the original query plan
     db_manager = DatabaseManager('TPC-H')
     query = """select
-	L.l_orderkey,
-	sum(L.l_extendedprice * (1 - l_discount)) as revenue,
-	O.o_orderdate,
-	O.o_shippriority
+	l_orderkey,
+	sum(l_extendedprice * (1 - l_discount)) as revenue,
+	o_orderdate,
+	o_shippriority
 from
-	customer C,
-	orders O,
-	lineitem L
+	customer,
+	orders,
+	lineitem
 where
-	C.c_mktsegment = 'BUILDING'
-	and C.c_custkey = O.o_custkey
-	and L.l_orderkey = O.o_orderkey
-	and O.o_totalprice < 50000
-	and L.l_extendedprice > 1200
+	c_mktsegment = 'HOUSEHOLD'
+	and o_orderdate < date '1995-03-21'
+	and l_shipdate > date '1995-03-21'
 group by
-	L.l_orderkey,
-	O.o_orderdate,
-	O.o_shippriority
+	l_orderkey,
+	o_orderdate,
+	o_shippriority
 order by
-	revenue desc,
-	o_orderdate
-        """
+	revenue desc;
+"""
 
     qep_data = db_manager.get_qep(query)
 
